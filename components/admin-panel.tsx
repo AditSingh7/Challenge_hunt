@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES, LANGUAGES, LANGUAGE_LABELS, challengeCode, type Category, type Challenge, type Difficulty, type Language } from "@/lib/types";
 import ChallengesView from "./challenges-view";
 import LeaderboardPage from "./leaderboard/leaderboard-page";
@@ -62,6 +62,15 @@ interface AlertItem {
   violations: number;
   banned: boolean;
   at: string;
+}
+
+interface ConfirmationRequest {
+  userId?: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  onConfirm: () => Promise<void>;
 }
 
 interface Overview {
@@ -179,7 +188,7 @@ function Panel({
 }) {
   return (
     <section className="glass-panel rounded-2xl border border-cyan-500/20 overflow-hidden">
-      <div className="px-5 sm:px-6 py-4 border-b border-cyan-500/15 flex items-center justify-between gap-3">
+      <div className="px-5 sm:px-6 py-4 border-b border-cyan-500/15 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-orbitron font-bold text-sm sm:text-base text-white uppercase tracking-wide">
             <i className={`${icon} text-cyan-400 mr-2`} aria-hidden="true" />
@@ -207,9 +216,11 @@ function SearchInput({
     <div className="relative w-full sm:w-72">
       <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500 text-xs" aria-hidden="true" />
       <input
+        type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         className="w-full bg-brand-navy/70 border border-cyan-500/25 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-cyan-400/70 transition-colors"
       />
     </div>
@@ -256,6 +267,96 @@ function EmptyState({ icon, message }: { icon: string; message: string }) {
   );
 }
 
+function ConfirmationDialog({
+  request,
+  busy,
+  inline = false,
+  onCancel,
+  onConfirm,
+}: {
+  request: ConfirmationRequest;
+  busy: boolean;
+  inline?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLButtonElement>("[data-dialog-cancel]")?.focus();
+    return () => previousFocus?.focus();
+  }, []);
+
+  function keepFocusInside(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape" && !busy) {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const buttons = dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+    if (!buttons?.length) return;
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  return (
+    <div className={inline ? "w-full" : "fixed inset-0 z-[100] flex items-start justify-center bg-transparent p-4 sm:justify-end sm:p-6"}>
+      <div
+        ref={dialogRef}
+        role="alertdialog"
+        aria-modal={inline ? undefined : "true"}
+        aria-labelledby="admin-confirm-title"
+        aria-describedby="admin-confirm-description"
+        onKeyDown={keepFocusInside}
+        className={`w-full rounded-xl border border-cyan-400/30 bg-[#081326] ${inline ? "flex max-w-none items-center gap-2 p-2" : "max-w-md p-4 shadow-[0_18px_60px_rgba(0,0,0,0.4)] sm:p-5"}`}
+      >
+        <div className={`flex min-w-0 ${inline ? "items-center gap-2" : "items-start gap-3"}`}>
+          <span className={`flex shrink-0 items-center justify-center rounded-xl border ${inline ? "h-7 w-7" : "mt-0.5 h-10 w-10"} ${request.destructive ? "border-rose-400/30 bg-rose-500/10 text-rose-300" : "border-amber-400/30 bg-amber-500/10 text-amber-300"}`}>
+            <i className={`fa-solid ${request.destructive ? "fa-triangle-exclamation" : "fa-circle-question"}`} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 id="admin-confirm-title" className={`font-orbitron font-bold uppercase tracking-wide text-white ${inline ? "text-[10px] leading-4" : "text-base"}`}>
+              {request.title}
+            </h2>
+            <p id="admin-confirm-description" className={`${inline ? "sr-only" : "mt-2 text-sm leading-6 text-slate-300"}`}>
+              {request.description}
+            </p>
+          </div>
+        </div>
+        <div className={`flex shrink-0 gap-1.5 ${inline ? "ml-auto" : "mt-6 flex-col-reverse sm:flex-row sm:justify-end"}`}>
+          <button
+            type="button"
+            data-dialog-cancel
+            disabled={busy}
+            onClick={onCancel}
+            className={`rounded-lg border border-white/15 font-semibold text-slate-200 transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:opacity-50 ${inline ? "px-2 py-1 text-[10px]" : "px-4 py-2.5 text-sm"}`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            className={`rounded-lg font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-wait disabled:opacity-60 ${inline ? "px-2 py-1 text-[10px]" : "px-4 py-2.5 text-sm"} ${request.destructive ? "bg-rose-600 hover:bg-rose-500" : "bg-cyan-600 hover:bg-cyan-500"}`}
+          >
+            {busy ? "Please wait…" : request.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPanel() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [overview, setOverview] = useState<Overview>(EMPTY_OVERVIEW);
@@ -267,6 +368,8 @@ export default function AdminPanel() {
   const [challengeQuery, setChallengeQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null);
+  const [confirmationBusy, setConfirmationBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -423,8 +526,22 @@ export default function AdminPanel() {
     }
   }
 
+  function askForConfirmation(request: ConfirmationRequest) {
+    setConfirmation(request);
+  }
+
+  async function confirmPendingAction() {
+    if (!confirmation || confirmationBusy) return;
+    setConfirmationBusy(true);
+    try {
+      await confirmation.onConfirm();
+      setConfirmation(null);
+    } finally {
+      setConfirmationBusy(false);
+    }
+  }
+
   async function deleteChallenge(challenge: Challenge) {
-    if (!window.confirm(`Delete "${challenge.title}"? Scores earned from it will be removed.`)) return;
     try {
       const res = await fetch(`/api/challenges/${challenge.id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -439,9 +556,9 @@ export default function AdminPanel() {
     }
   }
 
-  async function userAction(id: string, action: "reset" | "toggle-role" | "unban" | "clear-warnings") {
+  async function userAction(user: OverviewUser, action: "reset" | "toggle-role" | "unban" | "clear-warnings") {
     try {
-      const res = await fetch(`/api/admin/users/${id}`, {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
@@ -453,7 +570,7 @@ export default function AdminPanel() {
       }
       toast(
         action === "reset"
-          ? "Score reset"
+          ? "Score and completed challenges reset"
           : action === "unban"
             ? "User unbanned"
             : action === "clear-warnings"
@@ -467,7 +584,6 @@ export default function AdminPanel() {
   }
 
   async function deleteUser(user: OverviewUser) {
-    if (!window.confirm(`Delete user "${user.username}"? This cannot be undone.`)) return;
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
@@ -757,7 +873,15 @@ export default function AdminPanel() {
                                 icon="fa-solid fa-trash-can"
                                 label="Delete challenge"
                                 tone="danger"
-                                onClick={() => deleteChallenge(challenge)}
+                                onClick={() =>
+                                  askForConfirmation({
+                                    title: "Delete challenge?",
+                                    description: `Delete “${challenge.title}”? Scores earned from this challenge will also be removed.`,
+                                    confirmLabel: "Delete challenge",
+                                    destructive: true,
+                                    onConfirm: () => deleteChallenge(challenge),
+                                  })
+                                }
                               />
                             </div>
                           </td>
@@ -925,13 +1049,13 @@ export default function AdminPanel() {
                   <table className="w-full text-left font-rajdhani">
                     <thead className="bg-brand-navy/90 text-cyan-400 text-[11px] font-orbitron uppercase border-b border-cyan-500/15">
                       <tr>
-                        <th className="py-3 px-4 sm:px-5 w-40">User</th>
+                        <th className="py-3 px-4 sm:px-5 w-44">User</th>
                         <th className="py-3 px-4 sm:px-5 hidden xl:table-cell">Email</th>
                         <th className="py-3 px-4 sm:px-5 w-24 hidden sm:table-cell">Role</th>
                         <th className="py-3 px-4 sm:px-5 w-24 text-right">Score</th>
                         <th className="py-3 px-4 sm:px-5 w-24 text-center hidden md:table-cell">Solves</th>
                         <th className="py-3 px-4 sm:px-5 w-32">Status</th>
-                        <th className="py-3 px-4 sm:px-5 w-40 text-right">Actions</th>
+                        <th className="py-3 px-4 sm:px-5 min-w-52 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cyan-500/10 text-sm text-gray-300">
@@ -1002,25 +1126,52 @@ export default function AdminPanel() {
                             </div>
                           </td>
                           <td className="py-4 px-4 sm:px-5">
-                            <div className="flex items-center justify-end rounded-lg border border-white/10 bg-white/[0.02] divide-x divide-white/5 w-max ml-auto">
+                            {confirmation?.userId === user.id ? (
+                              <ConfirmationDialog
+                                inline
+                                request={confirmation}
+                                busy={confirmationBusy}
+                                onCancel={() => setConfirmation(null)}
+                                onConfirm={confirmPendingAction}
+                              />
+                            ) : (
+                            <div className="flex w-max items-center justify-end rounded-lg border border-white/10 bg-white/[0.02] divide-x divide-white/5 ml-auto">
                               <IconAction
                                 icon="fa-solid fa-rotate-left"
-                                label="Reset score"
+                                label="Reset score and solves"
                                 tone="warn"
-                                onClick={() => userAction(user.id, "reset")}
+                                onClick={() =>
+                                  askForConfirmation({
+                                    userId: user.id,
+                                    title: "Reset user progress?",
+                                    description: `Reset ${user.username}’s score and completed challenges? This cannot be undone.`,
+                                    confirmLabel: "Reset progress",
+                                    destructive: true,
+                                    onConfirm: () => userAction(user, "reset"),
+                                  })
+                                }
                               />
                               <IconAction
                                 icon="fa-solid fa-user-shield"
                                 label={user.role === "admin" ? "Demote to user" : "Promote to admin"}
                                 tone="admin"
-                                onClick={() => userAction(user.id, "toggle-role")}
+                                onClick={() => {
+                                  const nextRole = user.role === "admin" ? "regular user" : "administrator";
+                                  askForConfirmation({
+                                    userId: user.id,
+                                    title: "Change user role?",
+                                    description: `Change ${user.username}’s role to ${nextRole}?`,
+                                    confirmLabel: user.role === "admin" ? "Demote user" : "Promote to admin",
+                                    onConfirm: () => userAction(user, "toggle-role"),
+                                  });
+                                }}
                               />
                               {user.banned && (
                                 <IconAction
                                   icon="fa-solid fa-unlock"
                                   label="Unban user"
                                   tone="success"
-                                  onClick={() => userAction(user.id, "unban")}
+                                  onClick={() => userAction(user, "unban")}
                                 />
                               )}
                               {user.warnings > 0 && (
@@ -1028,16 +1179,26 @@ export default function AdminPanel() {
                                   icon="fa-solid fa-eye-slash"
                                   label="Clear warnings"
                                   tone="warn"
-                                  onClick={() => userAction(user.id, "clear-warnings")}
+                                  onClick={() => userAction(user, "clear-warnings")}
                                 />
                               )}
                               <IconAction
                                 icon="fa-solid fa-user-minus"
                                 label="Delete user"
                                 tone="danger"
-                                onClick={() => deleteUser(user)}
+                                onClick={() =>
+                                  askForConfirmation({
+                                    userId: user.id,
+                                    title: "Delete user?",
+                                    description: `Permanently delete ${user.username} and their account data? This cannot be undone.`,
+                                    confirmLabel: "Delete user",
+                                    destructive: true,
+                                    onConfirm: () => deleteUser(user),
+                                  })
+                                }
                               />
                             </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1212,6 +1373,14 @@ export default function AdminPanel() {
             </form>
           </div>
         </div>
+      )}
+      {confirmation && !confirmation.userId && (
+        <ConfirmationDialog
+          request={confirmation}
+          busy={confirmationBusy}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={confirmPendingAction}
+        />
       )}
     </div>
   );

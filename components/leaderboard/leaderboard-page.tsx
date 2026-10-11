@@ -8,6 +8,8 @@ import LeaderboardTable, { type SortDir, type SortKey } from "./leaderboard-tabl
 
 export default function LeaderboardPage({ windowEndsAt = null }: { windowEndsAt?: string | null }) {
   const router = useRouter();
+  const [syncedWindowEndsAt, setSyncedWindowEndsAt] = useState<string | null | undefined>(undefined);
+  const activeWindowEndsAt = syncedWindowEndsAt !== undefined ? syncedWindowEndsAt : windowEndsAt;
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState("");
@@ -32,6 +34,23 @@ export default function LeaderboardPage({ windowEndsAt = null }: { windowEndsAt?
     }
   }, [router]);
 
+  const syncEventWindow = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSyncedWindowEndsAt(data.challenges?.endsAt ?? null);
+    } catch {
+      // Keep the last known event window while offline.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (windowEndsAt || syncedWindowEndsAt !== undefined) return;
+    const id = window.setTimeout(() => void syncEventWindow(), 0);
+    return () => window.clearTimeout(id);
+  }, [windowEndsAt, syncedWindowEndsAt, syncEventWindow]);
+
   useEffect(() => {
     const boot = setTimeout(() => {
       refresh();
@@ -41,6 +60,7 @@ export default function LeaderboardPage({ windowEndsAt = null }: { windowEndsAt?
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === "leaderboard" || payload.type === "challenges") refresh();
+        if (payload.type === "settings") void syncEventWindow();
       } catch {
         // ignore malformed frames
       }
@@ -49,11 +69,11 @@ export default function LeaderboardPage({ windowEndsAt = null }: { windowEndsAt?
       clearTimeout(boot);
       source.close();
     };
-  }, [refresh]);
+  }, [refresh, syncEventWindow]);
 
   useEffect(() => {
-    if (!windowEndsAt) return;
-    const endMs = Date.parse(windowEndsAt);
+    if (!activeWindowEndsAt) return;
+    const endMs = Date.parse(activeWindowEndsAt);
     if (Number.isNaN(endMs)) return;
     const remaining = endMs - Date.now();
     if (remaining <= 0) {
@@ -62,7 +82,18 @@ export default function LeaderboardPage({ windowEndsAt = null }: { windowEndsAt?
     }
     const id = setTimeout(() => router.refresh(), remaining + 500);
     return () => clearTimeout(id);
-  }, [windowEndsAt, router]);
+  }, [activeWindowEndsAt, router]);
+
+  useEffect(() => {
+    if (!activeWindowEndsAt) return;
+    const endMs = Date.parse(activeWindowEndsAt);
+    if (Number.isNaN(endMs) || endMs <= Date.now()) return;
+
+    const id = window.setInterval(() => {
+      if (Date.now() < endMs) void refresh();
+    }, 10_000);
+    return () => window.clearInterval(id);
+  }, [activeWindowEndsAt, refresh]);
 
   const podiumRows = useMemo(() => [...rows].sort((a, b) => a.rank - b.rank).slice(0, 3), [rows]);
 
