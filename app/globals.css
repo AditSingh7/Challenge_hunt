@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-deep: #030712;
+  --color-brand-navy: #0b1329;
+  --color-brand-dark-blue: #101f42;
+  --color-brand-glow-blue: #1d4ed8;
+  --color-brand-cyan: #06b6d4;
+  --color-brand-neon-cyan: #00f0ff;
+  --color-brand-neon-blue: #3b82f6;
+
+  --font-sans: var(--f-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-orbitron: var(--f-orbitron), "Orbitron", sans-serif;
+  --font-rajdhani: var(--f-rajdhani), "Rajdhani", sans-serif;
+  --font-mono: var(--f-fira), "Fira Code", ui-monospace, monospace;
+  --font-typewriter: var(--f-special), "Special Elite", monospace;
+
+  --shadow-neon-cyan: 0 0 20px rgba(6, 182, 212, 0.4), 0 0 40px rgba(0, 240, 255, 0.2);
+  --shadow-neon-blue: 0 0 20px rgba(59, 130, 246, 0.4), 0 0 40px rgba(29, 78, 216, 0.2);
+  --shadow-logo-glow: 0 0 25px rgba(255, 255, 255, 0.6), 0 0 50px rgba(0, 240, 255, 0.3);
+}
+
+body {
+  background-color: #030712;
+  color: #f3f4f6;
+  overflow-x: hidden;
+  font-family: var(--font-sans);
+}
+
+.glass-panel {
+  background: rgba(11, 19, 41, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(16, 31, 66, 0.95);
+  border-color: rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.25);
+  transform: translateY(-4px);
+}
+
+.cyber-grid {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(6, 182, 212, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(6, 182, 212, 0.07) 1px, transparent 1px);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #030712;
+}
+::-webkit-scrollbar-thumb {
+  background: #06b6d4;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00f0ff;
+}
+
+.title-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #a5f3fc 40%, #00f0ff 70%, #3b82f6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.tech-border {
+  position: relative;
+}
+.tech-border::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid #00f0ff;
+  border-left: 2px solid #00f0ff;
+}
+.tech-border::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-bottom: 2px solid #00f0ff;
+  border-right: 2px solid #00f0ff;
+}
+
+.tekqbe-logo-glow {
+  filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)) drop-shadow(0px 0px 18px rgba(0, 240, 255, 0.5));
+}
+
+body.htp-overlay-open .site-navbar {
+  display: none;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(70px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
