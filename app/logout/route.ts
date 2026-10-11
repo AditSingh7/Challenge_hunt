@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { destroySession } from "@/lib/auth";
 
 const NO_CACHE = {
@@ -6,12 +6,24 @@ const NO_CACHE = {
   Pragma: "no-cache",
 };
 
-export async function GET(req: NextRequest) {
-  await destroySession();
-  return NextResponse.redirect(new URL("/?loggedOut=1", req.url), { headers: NO_CACHE });
+function redirectAfterLogout() {
+  // Keep this as a relative Location. Behind Railway's proxy, req.url can
+  // contain the internal localhost:8080 origin, which must never reach users.
+  return new NextResponse(null, {
+    status: 303,
+    headers: {
+      ...NO_CACHE,
+      Location: "/?loggedOut=1",
+    },
+  });
 }
 
-export async function POST(req: NextRequest) {
+export async function GET() {
   await destroySession();
-  return NextResponse.redirect(new URL("/?loggedOut=1", req.url), { headers: NO_CACHE });
+  return redirectAfterLogout();
+}
+
+export async function POST() {
+  await destroySession();
+  return redirectAfterLogout();
 }

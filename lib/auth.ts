@@ -8,6 +8,12 @@ import type { PublicUser, User } from "./types";
 export const SESSION_COOKIE = "htp_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const TOUCH_INTERVAL_MS = 60 * 1000;
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+};
 
 // Browser-close detection: the client beacons "close" on pagehide and heartbeats
 // while the page is alive. A close beacon older than the grace window destroys
@@ -40,16 +46,16 @@ export async function createSession(userId: string): Promise<string> {
 
 export async function attachSessionCookie(token: string): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-  });
+  cookieStore.set(SESSION_COOKIE, token, SESSION_COOKIE_OPTIONS);
 }
 
 export async function clearSessionCookie(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  cookieStore.set(SESSION_COOKIE, "", {
+    ...SESSION_COOKIE_OPTIONS,
+    maxAge: 0,
+    expires: new Date(0),
+  });
 }
 
 function sessionCleanupFilter(now: number) {
@@ -188,9 +194,7 @@ export async function destroySession(): Promise<void> {
 
   // Clear the cookie with the exact attributes it was set with so nothing survives.
   cookieStore.set(SESSION_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
+    ...SESSION_COOKIE_OPTIONS,
     maxAge: 0,
     expires: new Date(0),
   });

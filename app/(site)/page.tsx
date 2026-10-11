@@ -76,7 +76,7 @@ export default async function HomePage() {
         </div>
       </main>
 
-      {/* {!user && <Footer />} */}
+      <Footer />
     </>
   );
 }

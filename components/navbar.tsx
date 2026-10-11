@@ -212,6 +212,7 @@ export default function Navbar() {
             onClick={() => setMenuOpen((v) => !v)}
             className="md:hidden text-cyan-400 text-2xl focus:outline-none p-2"
             aria-label="Toggle menu"
+            aria-expanded={menuOpen}
           >
             <i className="fa-solid fa-bars-staggered" aria-hidden="true" />
           </button>
