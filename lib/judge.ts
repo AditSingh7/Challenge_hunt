@@ -8,52 +8,45 @@ const MAX_OUTPUT = 64 * 1024;
 const RUN_TIMEOUT_MS = 5000;
 const COMPILE_TIMEOUT_MS = 20000;
 
-const CODEBOX_LANGUAGE_IDS: Record<Language, number> = {
-  c: 50,
-  java: 62,
+type JDoodleResponse = {
+  output?: string | null;
+  error?: string | null;
+  cpuTime?: string | number | null;
 };
 
-type CodeboxResponse = {
-  stdout?: string | null;
-  stderr?: string | null;
-  compile_output?: string | null;
-  message?: string | null;
-  time?: string | number | null;
-  status?: { id?: number; description?: string } | number;
+const JDOODLE_RUNTIMES: Record<Language, { language: string; versionIndex: string; label: string }> = {
+  c: { language: "c", versionIndex: "4", label: "JDoodle (GCC 9.1.0)" },
+  java: { language: "java", versionIndex: "4", label: "JDoodle (Java 17)" },
 };
 
-async function judgeWithCodebox(
-  language: Language,
-  code: string,
-  expected: string
-): Promise<JudgeResult> {
-  const baseUrl = process.env.CODEBOX_URL?.trim().replace(/\/$/, "");
-  const token = process.env.CODEBOX_AUTH_TOKEN?.trim();
-  if (!baseUrl || !token) {
+async function judgeWithJDoodle(language: Language, code: string, expected: string): Promise<JudgeResult> {
+  const clientId = process.env.JDOODLE_CLIENT_ID?.trim();
+  const clientSecret = process.env.JDOODLE_CLIENT_SECRET?.trim();
+  const runtime = JDOODLE_RUNTIMES[language];
+  if (!clientId || !clientSecret) {
     return {
       status: "runtime-unavailable",
       output: "",
       expected,
       stderr: "",
-      runtime: "Codebox",
+      runtime: runtime.label,
       durationMs: 0,
-      message: "Codebox is not configured. Set CODEBOX_URL and CODEBOX_AUTH_TOKEN on the server.",
+      message: "JDoodle is not configured. Set JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET on the server.",
     };
   }
 
   const started = Date.now();
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/submissions?wait=true`, {
+    response = await fetch("https://api.jdoodle.com/v1/execute", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Auth-Token": token,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        source_code: code,
-        language_id: CODEBOX_LANGUAGE_IDS[language],
-        expected_output: expected,
+        clientId,
+        clientSecret,
+        script: code,
+        language: runtime.language,
+        versionIndex: runtime.versionIndex,
       }),
       signal: AbortSignal.timeout(30_000),
       cache: "no-store",
@@ -65,58 +58,49 @@ async function judgeWithCodebox(
       output: "",
       expected,
       stderr: error instanceof Error ? error.message : String(error),
-      runtime: "Codebox",
+      runtime: runtime.label,
       durationMs: Date.now() - started,
-      message: timedOut
-        ? "Code execution service took too long to respond."
-        : "Could not connect to the Codebox execution service.",
+      message: timedOut ? "Code execution service took too long to respond." : "Could not connect to JDoodle.",
     };
   }
 
-  const result = (await response.json().catch(() => null)) as CodeboxResponse | null;
+  const result = (await response.json().catch(() => null)) as JDoodleResponse | null;
   if (!response.ok || !result) {
     return {
       status: "runtime-unavailable",
       output: "",
       expected,
-      stderr: result?.message ?? `Codebox returned HTTP ${response.status}.`,
-      runtime: "Codebox",
+      stderr: result?.error ?? `JDoodle returned HTTP ${response.status}.`,
+      runtime: runtime.label,
       durationMs: Date.now() - started,
-      message: "The code execution service returned an invalid response.",
+      message: response.status === 429
+        ? "JDoodle has reached its daily execution limit. Please try again later."
+        : response.status === 401
+          ? "JDoodle rejected the server credentials."
+          : "JDoodle could not process this submission.",
     };
   }
 
-  const statusId =
-    typeof result.status === "number" ? result.status : result.status?.id;
-  const output = result.stdout ?? "";
-  const stderr = [result.compile_output, result.stderr, result.message]
-    .filter((part): part is string => Boolean(part))
-    .join("\n");
-  const status =
-    statusId === 3 ? "passed" :
-    statusId === 4 ? "failed" :
-    statusId === 5 ? "timeout" :
-    statusId === 13 || statusId === undefined ? "runtime-unavailable" :
-    "error";
-  const verdict = status === "passed"
-    ? { status: "passed" as const, message: "Pattern verified. Output matches the target matrix line-for-line." }
-    : status === "failed"
-      ? compare(output, expected)
-      : null;
-
+  const output = result.output ?? "";
+  const stderr = result.error ?? "";
+  const combined = `${output}\n${stderr}`;
+  const timedOut = /execution timed out|time limit exceeded|program timed out/i.test(combined);
+  const compileError = /(?:^|\n)[^\n]*:\s*(?:fatal )?error:|cannot find symbol|class .* is public, should be declared in a file named|compilation failed/i.test(combined);
+  const verdict = timedOut || compileError ? null : compare(output, expected);
+  const status: JudgeStatus = timedOut ? "timeout" : compileError ? "error" : verdict?.status ?? "failed";
+  const cpuTime = Number(result.cpuTime);
   return {
-    status: verdict?.status ?? status,
+    status,
     output,
     expected,
     stderr,
-    runtime: `Codebox (${language === "java" ? "Java 17" : "GCC 9"})`,
-    durationMs: result.time ? Math.round(Number(result.time) * 1000) || Date.now() - started : Date.now() - started,
-    message: verdict?.message ?? (
-      status === "timeout" ? "Execution timed out. Check for an infinite loop." :
-      status === "runtime-unavailable" ? "Codebox could not process this submission." :
-      status === "error" ? "Compilation or runtime error. Check the output for details." :
-      "Code execution failed."
-    ),
+    runtime: runtime.label,
+    durationMs: Number.isFinite(cpuTime) && cpuTime > 0 ? Math.round(cpuTime * 1000) : Date.now() - started,
+    message: timedOut
+      ? "Execution timed out. Check for an infinite loop."
+      : compileError
+        ? "Compilation or runtime error. Check the output for details."
+        : verdict?.message ?? "Code execution failed.",
   };
 }
 
@@ -409,8 +393,19 @@ function unavailable(language: Language): JudgeResult {
 }
 
 export async function judgeCode(language: Language, code: string, expected: string): Promise<JudgeResult> {
-  if (process.env.CODEBOX_URL?.trim() || process.env.LOCAL_CODE_EXECUTION !== "true") {
-    return judgeWithCodebox(language, code, expected);
+  if (process.env.JDOODLE_CLIENT_ID?.trim() && process.env.JDOODLE_CLIENT_SECRET?.trim()) {
+    return judgeWithJDoodle(language, code, expected);
+  }
+  if (process.env.LOCAL_CODE_EXECUTION !== "true") {
+    return {
+      status: "runtime-unavailable",
+      output: "",
+      expected,
+      stderr: "",
+      runtime: "JDoodle",
+      durationMs: 0,
+      message: "JDoodle is not configured. Set JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET on the server.",
+    };
   }
 
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "htp-judge-"));
@@ -541,31 +536,11 @@ export async function judgeCode(language: Language, code: string, expected: stri
 }
 
 export async function availableRuntimes(): Promise<Record<Language, boolean>> {
-  const baseUrl = process.env.CODEBOX_URL?.trim().replace(/\/$/, "");
-  const token = process.env.CODEBOX_AUTH_TOKEN?.trim();
-
-  if (baseUrl && token) {
-    try {
-      const response = await fetch(`${baseUrl}/languages`, {
-        headers: { "X-Auth-Token": token },
-        signal: AbortSignal.timeout(5000),
-        cache: "no-store",
-      });
-      if (!response.ok) return { java: false, c: false };
-
-      const languages = (await response.json()) as Array<{ id?: number }>;
-      const available = new Set(languages.map((language) => language.id));
-      return {
-        c: available.has(CODEBOX_LANGUAGE_IDS.c),
-        java: available.has(CODEBOX_LANGUAGE_IDS.java),
-      };
-    } catch {
-      return { java: false, c: false };
-    }
-  }
-
   if (process.env.LOCAL_CODE_EXECUTION !== "true") {
-    return { java: false, c: false };
+    const configured = Boolean(
+      process.env.JDOODLE_CLIENT_ID?.trim() && process.env.JDOODLE_CLIENT_SECRET?.trim()
+    );
+    return { java: configured, c: configured };
   }
 
   const [java, c] = await Promise.all([resolveJava(), resolveC()]);
