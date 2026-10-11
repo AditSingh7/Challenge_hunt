@@ -36,7 +36,7 @@ export default async function HomePage() {
                 TekQbe
               </div>
               <h1 className="font-orbitron text-4xl sm:text-6xl md:text-7xl font-black tracking-tight title-gradient leading-tight">
-                HACK THE PATTERNnnnnnnnnnnnnnnnnnnnnnn
+                HACK THE PATTERN
               </h1>
               <p className="font-rajdhani text-lg sm:text-xl text-cyan-100/80 max-w-2xl mx-auto font-medium tracking-wide">
                 Write algorithms, compile pattern matrices, execute test cases, and claim your place on the live hacker
