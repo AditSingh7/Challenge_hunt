@@ -28,14 +28,14 @@ export async function GET() {
     challenges.find({}, { projection: { _id: 0 } }).sort({ createdAt: 1, _id: 1 }).toArray(),
     availableRuntimes(),
     user.teamId
-      ? (await teamsCol()).findOne({ id: user.teamId }, { projection: { _id: 0, solved: 1 } })
+      ? (await teamsCol()).findOne({ id: user.teamId }, { projection: { _id: 0, solved: 1, patterns: 1 } })
       : Promise.resolve(null),
   ]);
 
   return NextResponse.json({
     challenges: list,
     solved: team ? team.solved : user.solved,
-    patterns: user.patterns ?? [],
+    patterns: [...new Set([...(user.patterns ?? []), ...(team?.patterns ?? [])])],
     role: user.role,
     runtimes,
   });

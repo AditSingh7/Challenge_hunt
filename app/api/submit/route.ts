@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     !!fresh &&
     ((fresh.patterns ?? []).includes(challenge.id) ||
       fresh.solved.includes(challenge.id) ||
+      (team?.patterns ?? []).includes(challenge.id) ||
       (team?.solved ?? []).includes(challenge.id));
   if (!patternVerified) {
     return NextResponse.json(

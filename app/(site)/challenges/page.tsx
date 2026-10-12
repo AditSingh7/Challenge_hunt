@@ -71,7 +71,7 @@ export default async function ChallengesPage() {
       .sort({ createdAt: 1, _id: 1 })
       .toArray(),
     user.teamId
-      ? (await teamsCol()).findOne({ id: user.teamId }, { projection: { _id: 0, solved: 1 } })
+      ? (await teamsCol()).findOne({ id: user.teamId }, { projection: { _id: 0, solved: 1, patterns: 1 } })
       : Promise.resolve(null),
   ]);
 
@@ -81,7 +81,7 @@ export default async function ChallengesPage() {
         user={toPublicUser(user)}
         initialChallenges={challenges}
         initialSolved={team ? team.solved : user.solved}
-        initialPatterns={user.patterns ?? []}
+        initialPatterns={[...new Set([...(user.patterns ?? []), ...(team?.patterns ?? [])])]}
         endsAt={window.endsAt}
       />
     </main>

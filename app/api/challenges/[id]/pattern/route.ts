@@ -62,6 +62,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   // First verified pattern — award the Stage 1 share of the points (once per team).
   const reward = challenge.patternPoints ?? 0;
   let earned = 0;
+  let progressChanged = false;
   const team = fresh.teamId
     ? await (await teamsCol()).findOne({ id: fresh.teamId }, { projection: { _id: 0 } })
     : null;
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       { $push: { patterns: id }, $inc: { score: reward } }
     );
     if (awarded.matchedCount > 0) {
+      progressChanged = true;
       earned = reward;
       await users.updateOne(
         { id: user.id, patterns: { $ne: id } },
@@ -83,12 +85,18 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       { id: user.id, patterns: { $ne: id } },
       { $push: { patterns: id }, $inc: { score: reward }, $set: { lastSeenAt: nowISO() } }
     );
-    if (awarded.matchedCount > 0) earned = reward;
+    if (awarded.matchedCount > 0) {
+      progressChanged = true;
+      earned = reward;
+    }
   }
 
-  if (earned > 0) {
-    broadcastLeaderboard();
-    broadcast({ type: "stats" });
+  if (progressChanged) {
+    if (earned > 0) {
+      broadcastLeaderboard();
+      broadcast({ type: "stats" });
+    }
+    broadcast({ type: "challenges" });
   }
 
   return NextResponse.json({ verified: true, earned });
