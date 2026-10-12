@@ -21,6 +21,11 @@ export default function Navbar() {
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
+  const userRef = useRef(user);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -41,6 +46,26 @@ export default function Navbar() {
     window.addEventListener("htp-auth", load);
     return () => window.removeEventListener("htp-auth", load);
   }, [pathname]);
+
+  useEffect(() => {
+    const source = new EventSource("/api/events");
+    source.onmessage = (event) => {
+      try {
+        const type = JSON.parse(event.data).type;
+        if (userRef.current && ["users", "leaderboard", "stats"].includes(type)) {
+          fetch("/api/me", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data) setUser(data.user ?? null);
+            })
+            .catch(() => {});
+        }
+      } catch {
+        // Ignore malformed event frames.
+      }
+    };
+    return () => source.close();
+  }, []);
 
   useEffect(() => {
     const onOpen = () => setOverlayOpen(true);

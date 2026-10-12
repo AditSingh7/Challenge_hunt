@@ -15,6 +15,7 @@ import { starterTemplates } from "@/lib/templates";
 import { toast } from "./toast";
 
 const DEFAULT_TEMPLATES = starterTemplates();
+const EMPTY_PATTERNS: string[] = [];
 
 function templateFor(challenge: Challenge | null, language: Language): string {
   return challenge?.codeTemplates?.[language] ?? DEFAULT_TEMPLATES[language] ?? "";
@@ -56,14 +57,19 @@ export default function ChallengesView({
   user,
   initialChallenges,
   initialSolved,
-  initialPatterns = [],
+  initialPatterns,
   compact = false,
   endsAt = null,
 }: ChallengesViewProps) {
   const router = useRouter();
   const [challenges, setChallenges] = useState<Challenge[]>(initialChallenges);
   const [solved, setSolved] = useState<string[]>(initialSolved);
-  const [patterns, setPatterns] = useState<string[]>(initialPatterns);
+  const [patterns, setPatterns] = useState<string[]>(initialPatterns ?? EMPTY_PATTERNS);
+  const [previousInitialData, setPreviousInitialData] = useState({
+    challenges: initialChallenges,
+    solved: initialSolved,
+    patterns: initialPatterns,
+  });
   const [filter, setFilter] = useState<string>("all");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
@@ -76,6 +82,21 @@ export default function ChallengesView({
   const [runtimes, setRuntimes] = useState<Record<Language, boolean> | null>(null);
   const [banStage, setBanStage] = useState<number | "banned" | null>(null);
   const banStartedRef = useRef(false);
+
+  if (
+    previousInitialData.challenges !== initialChallenges ||
+    previousInitialData.solved !== initialSolved ||
+    previousInitialData.patterns !== initialPatterns
+  ) {
+    setPreviousInitialData({
+      challenges: initialChallenges,
+      solved: initialSolved,
+      patterns: initialPatterns,
+    });
+    setChallenges(initialChallenges);
+    setSolved(initialSolved);
+    setPatterns(initialPatterns ?? EMPTY_PATTERNS);
+  }
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);

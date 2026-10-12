@@ -373,13 +373,15 @@ export default function AdminPanel() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/overview", { cache: "no-store" });
+      const [res, challengeRes] = await Promise.all([
+        fetch("/api/admin/overview", { cache: "no-store" }),
+        fetch("/api/challenges", { cache: "no-store" }),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setOverview(data);
         setLoaded(true);
       }
-      const challengeRes = await fetch("/api/challenges", { cache: "no-store" });
       if (challengeRes.ok) {
         const challengeData = await challengeRes.json();
         setChallenges(challengeData.challenges ?? []);
@@ -516,9 +518,18 @@ export default function AdminPanel() {
         toast(data.error ?? "Failed to save challenge", "error");
         return;
       }
+      if (data.challenge) {
+        setChallenges((current) => {
+          const exists = current.some((challenge) => challenge.id === data.challenge.id);
+          const next = exists
+            ? current.map((challenge) => (challenge.id === data.challenge.id ? data.challenge : challenge))
+            : [...current, data.challenge];
+          return next.sort((a, b) => a.number - b.number);
+        });
+      }
       toast(form.id ? "Challenge updated" : "Challenge created");
       setFormOpen(false);
-      refresh();
+      void refresh();
     } catch {
       toast("Network error", "error");
     } finally {
@@ -550,7 +561,8 @@ export default function AdminPanel() {
         return;
       }
       toast("Challenge deleted");
-      refresh();
+      setChallenges((current) => current.filter((item) => item.id !== challenge.id));
+      void refresh();
     } catch {
       toast("Network error", "error");
     }
@@ -568,6 +580,16 @@ export default function AdminPanel() {
         toast(data.error ?? "Action failed", "error");
         return;
       }
+      setOverview((current) => ({
+        ...current,
+        users: current.users.map((item) => {
+          if (item.id !== user.id) return item;
+          if (action === "reset") return { ...item, score: 0, solves: 0 };
+          if (action === "toggle-role") return { ...item, role: data.role ?? item.role };
+          if (action === "unban") return { ...item, banned: false, warnings: 0 };
+          return { ...item, warnings: 0 };
+        }),
+      }));
       toast(
         action === "reset"
           ? "Score and completed challenges reset"
@@ -577,7 +599,7 @@ export default function AdminPanel() {
               ? "Warnings cleared"
               : "Role updated"
       );
-      refresh();
+      void refresh();
     } catch {
       toast("Network error", "error");
     }
@@ -592,7 +614,11 @@ export default function AdminPanel() {
         return;
       }
       toast("User removed");
-      refresh();
+      setOverview((current) => ({
+        ...current,
+        users: current.users.filter((item) => item.id !== user.id),
+      }));
+      void refresh();
     } catch {
       toast("Network error", "error");
     }

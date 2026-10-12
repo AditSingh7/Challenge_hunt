@@ -27,7 +27,7 @@ const fontVariables = [inter.variable, orbitron.variable, rajdhani.variable, fir
   .filter(Boolean)
   .join(" ");
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${fontVariables} scroll-smooth h-full`}>
       <body className="font-sans antialiased relative min-h-screen flex flex-col selection:bg-cyan-500 selection:text-black">
