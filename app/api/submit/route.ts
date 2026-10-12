@@ -6,6 +6,7 @@ import { judgeCode } from "@/lib/judge";
 import { broadcast } from "@/lib/events";
 import { broadcastLeaderboard } from "@/lib/leaderboard";
 import { getChallengeWindow } from "@/lib/challenge-window";
+import { isPrintOnlySubmission, simpleCodeFeedback } from "@/lib/solution-policy";
 import { LANGUAGES, type Language, type Submission } from "@/lib/types";
 
 const MAX_CODE_LENGTH = 50000;
@@ -58,6 +59,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Stage 1 locked: verify your pattern against the problem statement before submitting code." },
       { status: 403 }
+    );
+  }
+
+  if (user.role !== "admin" && isPrintOnlySubmission(language, code)) {
+    const attemptPath = `simpleCodeAttempts.${challenge.id}`;
+    const updatedUser = await users.findOneAndUpdate(
+      { id: user.id },
+      { $inc: { [attemptPath]: 1 } },
+      { returnDocument: "after", projection: { simpleCodeAttempts: 1 } }
+    );
+    const attempt = updatedUser?.simpleCodeAttempts?.[challenge.id] ?? 1;
+    return NextResponse.json(
+      { error: simpleCodeFeedback(attempt), simpleCodeRejected: true },
+      { status: 400 }
     );
   }
 

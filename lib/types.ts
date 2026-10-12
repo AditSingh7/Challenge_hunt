@@ -27,6 +27,7 @@ export interface User {
   banned?: boolean;
   bannedAt?: string;
   tabViolations?: number;
+  simpleCodeAttempts?: Record<string, number>;
   teamId?: string;
   patterns?: string[];
 }

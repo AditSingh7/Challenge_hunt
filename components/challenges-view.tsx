@@ -260,7 +260,9 @@ export default function ChallengesView({
         return;
       }
       if (!res.ok) {
-        pushLine("fail", `[Engine] ${data.error ?? "Submission failed."}`);
+        const error = data.error ?? "Submission failed.";
+        pushLine("fail", `[Engine] ${error}`);
+        if (data.simpleCodeRejected) toast(error, "error", 6000);
         setRunning(false);
         return;
       }
