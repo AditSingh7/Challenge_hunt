@@ -75,8 +75,10 @@ export default function SessionWatchdog() {
     if (pathname === "/" || banStage === "banned") return;
 
     let mounted = true;
+    let isParticipant = false;
     let monitoring = false;
     let lastReport = 0;
+    let endTimer: number | undefined;
 
     const reportViolation = async () => {
       const now = Date.now();
@@ -108,13 +110,55 @@ export default function SessionWatchdog() {
     };
     const onBlur = () => void reportViolation();
 
+    const stopMonitoring = () => {
+      if (!monitoring) return;
+      monitoring = false;
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+
+    const startMonitoring = () => {
+      if (monitoring) return;
+      monitoring = true;
+      document.addEventListener("visibilitychange", onVisibility);
+      window.addEventListener("blur", onBlur);
+    };
+
+    const syncChallengeWindow = async () => {
+      try {
+        const res = await fetch("/api/settings", { cache: "no-store", credentials: "same-origin" });
+        if (!res.ok || !mounted) return;
+        const data = await res.json();
+        const endsAt = Date.parse(data.challenges?.endsAt ?? "");
+        const active = isParticipant && data.challenges?.visible === true && Number.isFinite(endsAt) && endsAt > Date.now();
+        if (endTimer !== undefined) window.clearTimeout(endTimer);
+        if (active) {
+          startMonitoring();
+          endTimer = window.setTimeout(stopMonitoring, endsAt - Date.now());
+        } else {
+          stopMonitoring();
+        }
+      } catch {
+        // Keep the current monitor state until settings can be checked again.
+      }
+    };
+
+    let settingsEvents: EventSource | undefined;
     void fetch("/api/me", { cache: "no-store", credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!mounted || data?.user?.role !== "user") return;
-        monitoring = true;
-        document.addEventListener("visibilitychange", onVisibility);
-        window.addEventListener("blur", onBlur);
+        isParticipant = true;
+        void syncChallengeWindow();
+        settingsEvents = new EventSource("/api/events");
+        settingsEvents.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === "settings") void syncChallengeWindow();
+          } catch {
+            // Ignore malformed event frames.
+          }
+        };
       })
       .catch(() => {
         // No session or temporary network failure; the next navigation retries.
@@ -122,9 +166,9 @@ export default function SessionWatchdog() {
 
     return () => {
       mounted = false;
-      monitoring = false;
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
+      stopMonitoring();
+      if (endTimer !== undefined) window.clearTimeout(endTimer);
+      settingsEvents?.close();
     };
   }, [pathname, banStage]);
 

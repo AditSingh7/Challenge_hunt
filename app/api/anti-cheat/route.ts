@@ -3,6 +3,7 @@ import { getSessionUserRecord } from "@/lib/auth";
 import { nowISO, sessionsCol, teamsCol, usersCol } from "@/lib/db";
 import { broadcast } from "@/lib/events";
 import { broadcastLeaderboard } from "@/lib/leaderboard";
+import { getChallengeWindow } from "@/lib/challenge-window";
 
 const MAX_ATTEMPTS = 2;
 
@@ -25,6 +26,11 @@ export async function POST() {
 
   if (user.role === "admin") {
     return NextResponse.json({ banned: false, ignored: true });
+  }
+
+  const challengeWindow = await getChallengeWindow();
+  if (!challengeWindow.open) {
+    return NextResponse.json({ banned: false, ignored: true, inactive: true });
   }
 
   if (user.banned) {
