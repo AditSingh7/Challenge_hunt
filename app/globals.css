@@ -27,6 +27,11 @@ body {
   font-family: var(--font-sans);
 }
 
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 .glass-panel {
   background: rgba(11, 19, 41, 0.82);
   backdrop-filter: blur(16px);
