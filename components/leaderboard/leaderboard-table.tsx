@@ -15,6 +15,7 @@ interface LeaderboardTableProps {
   sortKey: SortKey;
   sortDir: SortDir;
   onSort: (key: SortKey) => void;
+  adminMode?: boolean;
 }
 
 function SortTh({
@@ -72,6 +73,7 @@ export default function LeaderboardTable({
   sortKey,
   sortDir,
   onSort,
+  adminMode = false,
 }: LeaderboardTableProps) {
   return (
     <section
@@ -83,6 +85,7 @@ export default function LeaderboardTable({
         onPageSizeChange={onPageSizeChange}
         search={search}
         onSearchChange={onSearchChange}
+        adminMode={adminMode}
       />
 
       <div className="overflow-x-auto">

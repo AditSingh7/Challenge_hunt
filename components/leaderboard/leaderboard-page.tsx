@@ -6,7 +6,13 @@ import type { LeaderboardRow } from "@/lib/types";
 import Podium from "./podium";
 import LeaderboardTable, { type SortDir, type SortKey } from "./leaderboard-table";
 
-export default function LeaderboardPage({ windowEndsAt = null }: { windowEndsAt?: string | null }) {
+export default function LeaderboardPage({
+  windowEndsAt = null,
+  adminMode = false,
+}: {
+  windowEndsAt?: string | null;
+  adminMode?: boolean;
+}) {
   const router = useRouter();
   const [syncedWindowEndsAt, setSyncedWindowEndsAt] = useState<string | null | undefined>(undefined);
   const activeWindowEndsAt = syncedWindowEndsAt !== undefined ? syncedWindowEndsAt : windowEndsAt;
@@ -128,6 +134,7 @@ export default function LeaderboardPage({ windowEndsAt = null }: { windowEndsAt?
         loaded={loaded}
         search={search}
         onSearchChange={setSearch}
+        adminMode={adminMode}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
         sortKey={sortKey}

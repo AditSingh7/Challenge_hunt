@@ -3,11 +3,12 @@ interface TableControlsProps {
   onPageSizeChange: (size: number) => void;
   search: string;
   onSearchChange: (value: string) => void;
+  adminMode?: boolean;
 }
 
 const PAGE_SIZES = [10, 25, 50];
 
-export default function TableControls({ pageSize, onPageSizeChange, search, onSearchChange }: TableControlsProps) {
+export default function TableControls({ pageSize, onPageSizeChange, search, onSearchChange, adminMode = false }: TableControlsProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-5 py-4 border-b border-white/10">
       <label className="flex items-center gap-2 font-rajdhani text-sm text-slate-300">
@@ -27,19 +28,31 @@ export default function TableControls({ pageSize, onPageSizeChange, search, onSe
         <span className="whitespace-nowrap">entries</span>
       </label>
 
-      <div className="relative">
-        <i
-          className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500/60 text-xs"
-          aria-hidden="true"
-        />
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search teams..."
-          aria-label="Search teams"
-          className="w-full sm:w-64 bg-[#0d1b2d] border border-cyan-500/25 rounded-lg pl-9 pr-4 py-2 text-sm font-rajdhani text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
-        />
+      <div className="flex w-full items-center gap-2 sm:w-auto">
+        {adminMode && (
+          <a
+            href="/api/admin/leaderboard/export"
+            download
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:border-emerald-300/60 hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          >
+            <i className="fa-solid fa-file-excel" aria-hidden="true" />
+            <span>Export report</span>
+          </a>
+        )}
+        <div className="relative min-w-0 flex-1 sm:flex-none">
+          <i
+            className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500/60 text-xs"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search teams..."
+            aria-label="Search teams"
+            className="w-full sm:w-64 bg-[#0d1b2d] border border-cyan-500/25 rounded-lg pl-9 pr-4 py-2 text-sm font-rajdhani text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+          />
+        </div>
       </div>
     </div>
   );

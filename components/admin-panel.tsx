@@ -1243,7 +1243,7 @@ export default function AdminPanel() {
 
           {tab === "leaderboard" && (
             <section className="glass-panel rounded-2xl border border-cyan-500/20 p-5 sm:p-6">
-              <LeaderboardPage />
+              <LeaderboardPage adminMode />
             </section>
           )}
         </div>
