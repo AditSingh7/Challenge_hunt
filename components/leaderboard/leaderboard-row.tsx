@@ -1,3 +1,7 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LeaderboardRow } from "@/lib/types";
 import TeamAvatar from "./team-avatar";
 import BadgeIcon from "./badge-icon";
@@ -22,6 +26,29 @@ const RANK_STYLES: Record<number, string> = {
 };
 
 export default function LeaderboardRow({ row }: { row: LeaderboardRow }) {
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showMembers(button: HTMLButtonElement) {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    const rect = button.getBoundingClientRect();
+    const width = 256;
+    const estimatedHeight = Math.min(260, 92 + row.members.length * 32);
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const top = rect.bottom + 8 + estimatedHeight <= window.innerHeight
+      ? rect.bottom + 8
+      : Math.max(8, rect.top - estimatedHeight - 8);
+    setPopupPosition({ top, left });
+    setMembersOpen(true);
+  }
+
+  function scheduleClose() {
+    if (pinnedOpen) return;
+    closeTimer.current = setTimeout(() => setMembersOpen(false), 120);
+  }
+
   return (
     <tr
       className={`transition-colors ${row.isSelf ? "bg-cyan-500/[0.07]" : "hover:bg-white/[0.03]"}`}
@@ -41,6 +68,64 @@ export default function LeaderboardRow({ row }: { row: LeaderboardRow }) {
               </span>
             )}
           </span>
+          <button
+            type="button"
+            aria-label={`Show ${row.teamName} team members`}
+            aria-expanded={membersOpen}
+            title="Show team members"
+            onMouseEnter={(event) => showMembers(event.currentTarget)}
+            onMouseLeave={scheduleClose}
+            onFocus={(event) => showMembers(event.currentTarget)}
+            onBlur={scheduleClose}
+            onClick={(event) => {
+              if (pinnedOpen) {
+                setPinnedOpen(false);
+                setMembersOpen(false);
+              } else {
+                showMembers(event.currentTarget);
+                setPinnedOpen(true);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setPinnedOpen(false);
+                setMembersOpen(false);
+              }
+            }}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-cyan-300/70 transition-colors hover:bg-cyan-400/10 hover:text-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
+            <i className="fa-solid fa-eye text-xs" aria-hidden="true" />
+          </button>
+          {membersOpen && typeof document !== "undefined" && createPortal(
+            <div
+              role="dialog"
+              aria-label={`${row.teamName} team members`}
+              onMouseEnter={() => {
+                if (closeTimer.current) clearTimeout(closeTimer.current);
+              }}
+              onMouseLeave={scheduleClose}
+              style={{ top: popupPosition.top, left: popupPosition.left }}
+              className="fixed z-[200] w-64 overflow-hidden rounded-xl border border-cyan-400/30 bg-[#081326] shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+            >
+              <div className="flex items-center justify-between border-b border-cyan-500/15 px-3 py-2">
+                <span className="truncate font-orbitron text-[10px] font-bold uppercase tracking-wide text-cyan-200">
+                  {row.teamName} · Members
+                </span>
+                <span className="ml-2 shrink-0 font-mono text-[10px] text-slate-400">{row.members.length}</span>
+              </div>
+              <ul className="max-h-52 overflow-y-auto p-2">
+                {row.members.length > 0 ? row.members.map((member) => (
+                  <li key={member} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-200">
+                    <i className="fa-solid fa-user text-[10px] text-cyan-400/70" aria-hidden="true" />
+                    <span className="truncate">{member}</span>
+                  </li>
+                )) : (
+                  <li className="px-2 py-2 text-xs text-slate-400">No members found.</li>
+                )}
+              </ul>
+            </div>,
+            document.body
+          )}
         </div>
       </td>
       <td className="py-3.5 px-4 sm:px-5 font-mono text-sm text-cyan-300 font-semibold whitespace-nowrap">
