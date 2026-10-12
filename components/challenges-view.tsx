@@ -80,8 +80,6 @@ export default function ChallengesView({
   const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>([]);
   const [running, setRunning] = useState(false);
   const [runtimes, setRuntimes] = useState<Record<Language, boolean> | null>(null);
-  const [banStage, setBanStage] = useState<number | "banned" | null>(null);
-  const banStartedRef = useRef(false);
 
   if (
     previousInitialData.challenges !== initialChallenges ||
@@ -179,63 +177,6 @@ export default function ChallengesView({
       router.refresh();
     }
   }, [windowExpired, router]);
-
-  function startBanCountdown() {
-    if (banStartedRef.current) return;
-    banStartedRef.current = true;
-    setBanStage(3);
-    let next = 2;
-    const tick = () => {
-      if (next >= 1) {
-        setBanStage(next);
-        next -= 1;
-        setTimeout(tick, 1000);
-      } else {
-        setBanStage("banned");
-      }
-    };
-    setTimeout(tick, 1000);
-  }
-
-  useEffect(() => {
-    if (!activeId) return;
-    let lastReport = 0;
-
-    const report = async () => {
-      const now = Date.now();
-      if (now - lastReport < 2000) return;
-      lastReport = now;
-      try {
-        const res = await fetch("/api/anti-cheat", { method: "POST" });
-        if (res.status === 401) return;
-        const data = await res.json().catch(() => ({}));
-        if (data.banned) {
-          toast(data.message ?? "You are Banned", "error");
-          startBanCountdown();
-          return;
-        }
-        if (typeof data.leftAttempts === "number" && !data.ignored) {
-          toast(`Unusual Detection! Left attempts: ${data.leftAttempts}`, "error");
-        }
-      } catch {
-        // offline — ignore
-      }
-    };
-
-    const onVisibility = () => {
-      if (document.hidden) void report();
-    };
-    const onBlur = () => {
-      void report();
-    };
-
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, [activeId]);
 
   if (activeId && !active) setActiveId(null);
 
@@ -827,39 +768,6 @@ export default function ChallengesView({
         </div>
       )}
 
-      {banStage !== null && (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-live="assertive"
-          aria-label="Account banned"
-          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6"
-        >
-          {banStage === "banned" ? (
-            <div className="max-w-lg space-y-5">
-              <i className="fa-solid fa-ban text-6xl text-rose-500" aria-hidden="true" />
-              <h1 className="font-orbitron font-black text-4xl sm:text-6xl uppercase text-rose-500 drop-shadow-[0_0_18px_rgba(244,63,94,0.5)]">
-                You are Banned
-              </h1>
-              <p className="font-rajdhani text-lg text-gray-300">
-                Unusual activity detected during a challenge. Your account has been suspended.
-              </p>
-              <p className="font-mono text-xs text-gray-500">Contact the administrator to restore your access.</p>
-              <a
-                href="/logout"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-rose-500/40 text-rose-400 font-orbitron font-bold text-xs uppercase hover:bg-rose-500/10 transition-colors"
-              >
-                <i className="fa-solid fa-power-off" aria-hidden="true" />
-                Sign Out
-              </a>
-            </div>
-          ) : (
-            <div className="font-orbitron font-black text-[7rem] sm:text-[9rem] leading-none text-rose-500 animate-pulse">
-              {banStage}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

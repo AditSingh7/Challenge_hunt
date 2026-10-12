@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Logo from "@/components/logo";
-import Footer from "@/components/footer";
 import AuthNotice from "@/components/auth-notice";
 import EventTimer from "@/components/event-timer";
 import { getSessionUser } from "@/lib/auth";

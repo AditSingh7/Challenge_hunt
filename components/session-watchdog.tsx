@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { toast } from "./toast";
 
 const PING_INTERVAL_MS = 20_000;
 
@@ -17,6 +18,7 @@ function post(action: "ping" | "resume" | "close", keepalive = false): Promise<R
 
 export default function SessionWatchdog() {
   const pathname = usePathname();
+  const [banStage, setBanStage] = useState<number | "banned" | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -69,5 +71,102 @@ export default function SessionWatchdog() {
     };
   }, [pathname]);
 
-  return null;
+  useEffect(() => {
+    if (pathname === "/" || banStage === "banned") return;
+
+    let mounted = true;
+    let monitoring = false;
+    let lastReport = 0;
+
+    const reportViolation = async () => {
+      const now = Date.now();
+      if (!monitoring || now - lastReport < 2000) return;
+      lastReport = now;
+
+      try {
+        const res = await fetch("/api/anti-cheat", { method: "POST", credentials: "same-origin" });
+        if (res.status === 401) {
+          monitoring = false;
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!mounted) return;
+
+        if (data.banned) {
+          toast(data.message ?? "You are Banned", "error");
+          setBanStage(3);
+        } else if (typeof data.leftAttempts === "number" && !data.ignored) {
+          toast(`Unusual Detection! Left attempts: ${data.leftAttempts}`, "error");
+        }
+      } catch {
+        // Offline — ignore and wait for the next tab-switch event.
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) void reportViolation();
+    };
+    const onBlur = () => void reportViolation();
+
+    void fetch("/api/me", { cache: "no-store", credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!mounted || data?.user?.role !== "user") return;
+        monitoring = true;
+        document.addEventListener("visibilitychange", onVisibility);
+        window.addEventListener("blur", onBlur);
+      })
+      .catch(() => {
+        // No session or temporary network failure; the next navigation retries.
+      });
+
+    return () => {
+      mounted = false;
+      monitoring = false;
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [pathname, banStage]);
+
+  useEffect(() => {
+    if (typeof banStage !== "number") return;
+    const timer = window.setTimeout(() => {
+      setBanStage((stage) => (typeof stage === "number" ? (stage > 1 ? stage - 1 : "banned") : stage));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [banStage]);
+
+  return banStage === null ? null : (
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-live="assertive"
+      aria-label="Account banned"
+      className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center text-center px-6"
+    >
+      {banStage === "banned" ? (
+        <div className="max-w-lg space-y-5">
+          <i className="fa-solid fa-ban text-6xl text-rose-500" aria-hidden="true" />
+          <h1 className="font-orbitron font-black text-4xl sm:text-6xl uppercase text-rose-500 drop-shadow-[0_0_18px_rgba(244,63,94,0.5)]">
+            You are Banned
+          </h1>
+          <p className="font-rajdhani text-lg text-gray-300">
+            Unusual activity detected. Your account has been suspended.
+          </p>
+          <p className="font-mono text-xs text-gray-500">Contact the administrator to restore your access.</p>
+          <a
+            href="/logout"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-rose-500/40 text-rose-400 font-orbitron font-bold text-xs uppercase hover:bg-rose-500/10 transition-colors"
+          >
+            <i className="fa-solid fa-power-off" aria-hidden="true" />
+            Sign Out
+          </a>
+        </div>
+      ) : (
+        <div className="font-orbitron font-black text-[7rem] sm:text-[9rem] leading-none text-rose-500 animate-pulse">
+          {banStage}
+        </div>
+      )}
+    </div>
+  );
 }
