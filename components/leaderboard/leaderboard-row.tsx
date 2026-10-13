@@ -59,7 +59,7 @@ export default function LeaderboardRow({ row }: { row: LeaderboardRow }) {
       <td className="py-3.5 px-2">
         <div className="flex items-center gap-3 min-w-0">
           <TeamAvatar username={row.teamName} size="sm" />
-          <span className="font-rajdhani font-bold text-white text-sm truncate max-w-[10rem] sm:max-w-none">
+          <span className="min-w-0 flex-1 whitespace-normal break-words [overflow-wrap:anywhere] font-rajdhani font-bold text-white text-sm leading-tight">
             {row.teamName}
             {row.isSelf && (
               <span className="ms-2 inline-flex items-center gap-1 text-[10px] font-mono text-yellow-300 align-middle">

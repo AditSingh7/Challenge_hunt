@@ -107,7 +107,7 @@ export default function LeaderboardTable({
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="shrink-0 font-orbitron text-sm font-bold text-cyan-300">#{row.rank}</span>
-                <span className="truncate font-rajdhani text-base font-bold text-white">{row.teamName}</span>
+                <span className="min-w-0 flex-1 whitespace-normal break-words [overflow-wrap:anywhere] font-rajdhani text-base font-bold leading-tight text-white">{row.teamName}</span>
                 {row.isSelf && <span className="shrink-0 font-mono text-[10px] text-yellow-300">Your Team</span>}
               </div>
               <div className="shrink-0 text-right">
@@ -156,6 +156,17 @@ export default function LeaderboardTable({
 
       <div className="hidden 2xl:block">
         <table className="w-full table-fixed text-left text-xs border-collapse">
+          <colgroup>
+            <col className="w-[7%]" />
+            <col className="w-[20%]" />
+            <col className="w-[8%]" />
+            <col className="w-[13%]" />
+            <col className="w-[15%]" />
+            <col className="w-[10%]" />
+            <col className="w-[11%]" />
+            <col className="w-[7%]" />
+            <col className="w-[9%]" />
+          </colgroup>
           <thead className="bg-[#0d1b2d] border-b border-white/10 text-cyan-400">
             <tr>
               <SortTh label="Rank" column="rank" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
