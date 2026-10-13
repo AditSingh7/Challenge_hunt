@@ -53,10 +53,10 @@ export default function LeaderboardRow({ row }: { row: LeaderboardRow }) {
     <tr
       className={`transition-colors ${row.isSelf ? "bg-cyan-500/[0.07]" : "hover:bg-white/[0.03]"}`}
     >
-      <td className="py-3.5 px-4 sm:px-5 font-orbitron font-bold text-sm">
+      <td className="py-3.5 px-2 font-orbitron font-bold text-xs">
         <span className={RANK_STYLES[row.rank] ?? "text-cyan-300/80"}>#{row.rank}</span>
       </td>
-      <td className="py-3.5 px-4 sm:px-5">
+      <td className="py-3.5 px-2">
         <div className="flex items-center gap-3 min-w-0">
           <TeamAvatar username={row.teamName} size="sm" />
           <span className="font-rajdhani font-bold text-white text-sm truncate max-w-[10rem] sm:max-w-none">
@@ -128,13 +128,13 @@ export default function LeaderboardRow({ row }: { row: LeaderboardRow }) {
           )}
         </div>
       </td>
-      <td className="py-3.5 px-4 sm:px-5 font-mono text-sm text-cyan-300 font-semibold whitespace-nowrap">
+      <td className="py-3.5 px-2 font-mono text-xs text-cyan-300 font-semibold">
         {row.score.toLocaleString()}
       </td>
-      <td className="py-3.5 px-4 sm:px-5 font-mono text-xs text-slate-400 whitespace-nowrap">
+      <td className="py-3.5 px-2 font-mono text-[10px] text-slate-400 break-words">
         {formatActivity(row.lastSeenAt)}
       </td>
-      <td className="py-3.5 px-4 sm:px-5">
+      <td className="py-3.5 px-2">
         {row.solvedIds.length === 0 ? (
           <span className="font-mono text-xs text-slate-600">—</span>
         ) : (
@@ -151,8 +151,8 @@ export default function LeaderboardRow({ row }: { row: LeaderboardRow }) {
           </div>
         )}
       </td>
-      <td className="py-3.5 px-4 sm:px-5 text-center font-mono text-sm text-slate-200">{row.solves}</td>
-      <td className="py-3.5 px-4 sm:px-5 text-center">
+      <td className="py-3.5 px-2 text-center font-mono text-xs text-slate-200">{row.solves}</td>
+      <td className="py-3.5 px-2 text-center">
         {row.warnings > 0 ? (
           <span
             title={`${row.warnings} anti-cheat warning${row.warnings === 1 ? "" : "s"} for this team`}
@@ -165,10 +165,10 @@ export default function LeaderboardRow({ row }: { row: LeaderboardRow }) {
           <span className="font-mono text-xs text-slate-600">—</span>
         )}
       </td>
-      <td className="py-3.5 px-4 sm:px-5 text-center text-sm">
+      <td className="py-3.5 px-2 text-center text-sm">
         <BadgeIcon solves={row.solves} />
       </td>
-      <td className="py-3.5 px-4 sm:px-5 text-center">
+      <td className="py-3.5 px-2 text-center">
         <span
           className={`px-2 py-0.5 rounded border font-mono text-[11px] whitespace-nowrap ${
             row.status === "Online"
