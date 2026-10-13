@@ -106,22 +106,21 @@ export default function SessionWatchdog() {
     };
 
     const onVisibility = () => {
-      if (document.hidden) void reportViolation();
+      // Only leaving this browser tab counts. Window focus changes and normal
+      // in-app actions (including closing the challenge editor) are not violations.
+      if (document.visibilityState === "hidden") void reportViolation();
     };
-    const onBlur = () => void reportViolation();
 
     const stopMonitoring = () => {
       if (!monitoring) return;
       monitoring = false;
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
     };
 
     const startMonitoring = () => {
       if (monitoring) return;
       monitoring = true;
       document.addEventListener("visibilitychange", onVisibility);
-      window.addEventListener("blur", onBlur);
     };
 
     const syncChallengeWindow = async () => {
