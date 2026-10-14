@@ -69,6 +69,7 @@ export default function ChallengesView({
   const [patterns, setPatterns] = useState<string[]>(initialPatterns ?? EMPTY_PATTERNS);
   const [optionalChallengeId, setOptionalChallengeId] = useState<string | null>(initialOptionalChallengeId);
   const [savingChoice, setSavingChoice] = useState(false);
+  const isPlayer = user?.role === "user";
   const [previousInitialData, setPreviousInitialData] = useState({
     challenges: initialChallenges,
     solved: initialSolved,
@@ -486,12 +487,12 @@ export default function ChallengesView({
         </div>
       ) : (
         <>
-        {!optionalChallengeId && challenges.some((challenge) => challenge.number === 3) && challenges.some((challenge) => challenge.number === 4) && (
+        {isPlayer && !optionalChallengeId && challenges.some((challenge) => challenge.number === 3) && challenges.some((challenge) => challenge.number === 4) && (
           <div className="glass-panel rounded-xl border border-cyan-500/30 px-4 py-3 text-center font-rajdhani text-sm text-cyan-100">
             Challenges 1 and 2 are required. For the final challenge, choose <strong className="text-white">Challenge 3 OR Challenge 4</strong>. Your choice is permanent.
           </div>
         )}
-        {optionalChallengeId && (
+        {isPlayer && optionalChallengeId && (
           <div className="glass-panel rounded-xl border border-emerald-500/30 px-4 py-3 text-center font-rajdhani text-sm text-emerald-100">
             Your optional challenge choice is locked. The other option is hidden for your account.
           </div>
@@ -500,7 +501,7 @@ export default function ChallengesView({
           {filtered.map((challenge) => {
             const isSolved = solved.includes(challenge.id);
             const isOptional = challenge.number === 3 || challenge.number === 4;
-            const needsChoice = isOptional && !optionalChallengeId && user?.role !== "admin";
+            const needsChoice = isPlayer && isOptional && !optionalChallengeId;
             return (
               <div
                 key={challenge.id}
@@ -605,7 +606,7 @@ export default function ChallengesView({
               </div>
             );
           })}
-          {!optionalChallengeId && filtered.some((challenge) => challenge.number === 3) && filtered.some((challenge) => challenge.number === 4) && (
+          {isPlayer && !optionalChallengeId && filtered.some((challenge) => challenge.number === 3) && filtered.some((challenge) => challenge.number === 4) && (
             <div
               aria-hidden="true"
               className="pointer-events-none hidden md:flex absolute left-1/2 top-3/4 -translate-x-1/2 -translate-y-1/2 z-10 items-center justify-center rounded-full border-4 border-brand-deep bg-cyan-400 px-4 py-1 font-orbitron text-2xl font-black tracking-widest text-brand-deep shadow-[0_0_28px_rgba(34,211,238,0.65)]"
