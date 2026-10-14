@@ -496,7 +496,7 @@ export default function ChallengesView({
             Your optional challenge choice is locked. The other option is hidden for your account.
           </div>
         )}
-        <div className={`grid grid-cols-1 md:grid-cols-2 auto-rows-fr ${compact ? "gap-4" : "gap-6"}`}>
+        <div className={`relative grid grid-cols-1 md:grid-cols-2 auto-rows-fr ${compact ? "gap-4" : "gap-6"}`}>
           {filtered.map((challenge) => {
             const isSolved = solved.includes(challenge.id);
             const isOptional = challenge.number === 3 || challenge.number === 4;
@@ -598,13 +598,21 @@ export default function ChallengesView({
                       disabled={savingChoice}
                       className="relative z-10 w-full py-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 font-rajdhani font-bold text-sm uppercase hover:bg-cyan-500 hover:text-black transition-all disabled:opacity-60"
                     >
-                      {needsChoice ? (savingChoice ? "Saving Choice..." : "Choose This · OR") : patterns.includes(challenge.id) ? "Continue · Write Code" : "Start Challenge"}
+                      {needsChoice ? (savingChoice ? "Saving Choice..." : "Choose This") : patterns.includes(challenge.id) ? "Continue · Write Code" : "Start Challenge"}
                     </button>
                   )}
                 </div>
               </div>
             );
           })}
+          {!optionalChallengeId && filtered.some((challenge) => challenge.number === 3) && filtered.some((challenge) => challenge.number === 4) && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none hidden md:flex absolute left-1/2 top-3/4 -translate-x-1/2 -translate-y-1/2 z-10 items-center justify-center rounded-full border-4 border-brand-deep bg-cyan-400 px-4 py-1 font-orbitron text-2xl font-black tracking-widest text-brand-deep shadow-[0_0_28px_rgba(34,211,238,0.65)]"
+            >
+              OR
+            </div>
+          )}
         </div>
         </>
       )}
