@@ -32,10 +32,25 @@ export async function GET() {
       : Promise.resolve(null),
   ]);
 
+  const visibleChallenges = user.role !== "admin" && user.optionalChallengeId
+    ? list.filter((challenge) => (challenge.number !== 3 && challenge.number !== 4) || challenge.id === user.optionalChallengeId)
+    : list;
+  const visibleIds = new Set(visibleChallenges.map((challenge) => challenge.id));
+  const personalOptionalIds = new Set(
+    user.role === "admin" ? [] : visibleChallenges.filter((challenge) => challenge.number === 3 || challenge.number === 4).map((challenge) => challenge.id)
+  );
+  const sharedSolved = team ? team.solved.filter((id) => visibleIds.has(id) && !personalOptionalIds.has(id)) : [];
+  const sharedPatterns = team?.patterns?.filter((id) => visibleIds.has(id) && !personalOptionalIds.has(id)) ?? [];
+
   return NextResponse.json({
-    challenges: list,
-    solved: team ? team.solved : user.solved,
-    patterns: [...new Set([...(user.patterns ?? []), ...(team?.patterns ?? [])])],
+    challenges: visibleChallenges,
+    solved: team
+      ? [...new Set([...sharedSolved, ...user.solved.filter((id) => personalOptionalIds.has(id))])]
+      : user.solved.filter((id) => visibleIds.has(id)),
+    patterns: team
+      ? [...new Set([...sharedPatterns, ...(user.patterns ?? []).filter((id) => personalOptionalIds.has(id))])]
+      : [...new Set([...(user.patterns ?? [])])].filter((id) => visibleIds.has(id)),
+    optionalChallengeId: user.optionalChallengeId ?? null,
     role: user.role,
     runtimes,
   });

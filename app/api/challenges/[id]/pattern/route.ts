@@ -35,18 +35,29 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const challenge = await (await challengesCol()).findOne(
     { id },
-    { projection: { _id: 0, sampleOutput: 1, patternPoints: 1 } }
+    { projection: { _id: 0, sampleOutput: 1, patternPoints: 1, number: 1 } }
   );
   if (!challenge) return NextResponse.json({ error: "Challenge not found." }, { status: 404 });
 
   const users = await usersCol();
   const fresh = await users.findOne(
     { id: user.id },
-    { projection: { _id: 0, solved: 1, patterns: 1, teamId: 1 } }
+    { projection: { _id: 0, solved: 1, patterns: 1, teamId: 1, optionalChallengeId: 1 } }
   );
   if (!fresh) return NextResponse.json({ error: "Account not found." }, { status: 401 });
+  if ((challenge.number === 3 || challenge.number === 4) && fresh.optionalChallengeId !== id) {
+    return NextResponse.json({ error: "Choose this optional challenge before verifying its pattern." }, { status: 403 });
+  }
 
-  const alreadyVerified = (fresh.patterns ?? []).includes(id) || fresh.solved.includes(id);
+  const isPersonalOptional = challenge.number === 3 || challenge.number === 4;
+  const teams = await teamsCol();
+  const teamProgress = fresh.teamId
+    ? await teams.findOne({ id: fresh.teamId }, { projection: { _id: 0, solved: 1, patterns: 1 } })
+    : null;
+  const alreadyVerified =
+    (fresh.patterns ?? []).includes(id) ||
+    fresh.solved.includes(id) ||
+    (!isPersonalOptional && ((teamProgress?.patterns ?? []).includes(id) || (teamProgress?.solved ?? []).includes(id)));
   const matches = normalizeOutput(pattern) === normalizeOutput(challenge.sampleOutput);
 
   if (!matches && !alreadyVerified) {
@@ -59,15 +70,23 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   if (alreadyVerified) return NextResponse.json({ verified: true, earned: 0 });
 
-  // First verified pattern — award the Stage 1 share of the points (once per team).
+  // Optional challenge progress belongs to the choosing user; other challenges retain team-shared progress.
   const reward = challenge.patternPoints ?? 0;
   let earned = 0;
   let progressChanged = false;
-  const team = fresh.teamId
-    ? await (await teamsCol()).findOne({ id: fresh.teamId }, { projection: { _id: 0 } })
-    : null;
+  const team = fresh.teamId ? await teams.findOne({ id: fresh.teamId }, { projection: { _id: 0 } }) : null;
 
-  if (team) {
+  if (isPersonalOptional) {
+    const awarded = await users.updateOne(
+      { id: user.id, patterns: { $ne: id } },
+      { $push: { patterns: id }, $inc: { score: reward }, $set: { lastSeenAt: nowISO() } }
+    );
+    if (awarded.matchedCount > 0) {
+      progressChanged = true;
+      earned = reward;
+      if (team) await teams.updateOne({ id: team.id }, { $inc: { score: reward } });
+    }
+  } else if (team) {
     const awarded = await (await teamsCol()).updateOne(
       { id: team.id, patterns: { $ne: id } },
       { $push: { patterns: id }, $inc: { score: reward } }

@@ -26,6 +26,7 @@ interface ChallengesViewProps {
   initialChallenges: Challenge[];
   initialSolved: string[];
   initialPatterns?: string[];
+  initialOptionalChallengeId?: string | null;
   compact?: boolean;
   endsAt?: string | null;
 }
@@ -58,6 +59,7 @@ export default function ChallengesView({
   initialChallenges,
   initialSolved,
   initialPatterns,
+  initialOptionalChallengeId = null,
   compact = false,
   endsAt = null,
 }: ChallengesViewProps) {
@@ -65,6 +67,8 @@ export default function ChallengesView({
   const [challenges, setChallenges] = useState<Challenge[]>(initialChallenges);
   const [solved, setSolved] = useState<string[]>(initialSolved);
   const [patterns, setPatterns] = useState<string[]>(initialPatterns ?? EMPTY_PATTERNS);
+  const [optionalChallengeId, setOptionalChallengeId] = useState<string | null>(initialOptionalChallengeId);
+  const [savingChoice, setSavingChoice] = useState(false);
   const [previousInitialData, setPreviousInitialData] = useState({
     challenges: initialChallenges,
     solved: initialSolved,
@@ -107,9 +111,37 @@ export default function ChallengesView({
   );
   const effectiveFilter = filter === "all" || categoryOptions.includes(filter) ? filter : "all";
   const filtered = useMemo(
-    () => (effectiveFilter === "all" ? challenges : challenges.filter((c) => c.category === effectiveFilter)),
-    [challenges, effectiveFilter]
+    () => {
+      const available = optionalChallengeId
+        ? challenges.filter((challenge) => (challenge.number !== 3 && challenge.number !== 4) || challenge.id === optionalChallengeId)
+        : challenges;
+      return effectiveFilter === "all" ? available : available.filter((challenge) => challenge.category === effectiveFilter);
+    },
+    [challenges, effectiveFilter, optionalChallengeId]
   );
+
+  const chooseOptionalChallenge = useCallback(async (challengeId: string) => {
+    if (optionalChallengeId || savingChoice) return;
+    setSavingChoice(true);
+    try {
+      const response = await fetch("/api/challenges/choice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast(data.error ?? "Could not save your optional challenge choice.", "error");
+        return;
+      }
+      setOptionalChallengeId(data.optionalChallengeId);
+      toast("Choice locked. This challenge is now yours to solve.", "success");
+    } catch {
+      toast("Could not save your optional challenge choice.", "error");
+    } finally {
+      setSavingChoice(false);
+    }
+  }, [optionalChallengeId, savingChoice]);
 
   const refresh = useCallback(async () => {
     try {
@@ -124,6 +156,7 @@ export default function ChallengesView({
       setChallenges(data.challenges ?? []);
       setSolved(data.solved ?? []);
       setPatterns(data.patterns ?? []);
+      setOptionalChallengeId(data.optionalChallengeId ?? null);
       if (data.runtimes) setRuntimes(data.runtimes);
     } catch {
       // offline
@@ -452,23 +485,37 @@ export default function ChallengesView({
           No challenges in this category yet.
         </div>
       ) : (
+        <>
+        {!optionalChallengeId && challenges.some((challenge) => challenge.number === 3) && challenges.some((challenge) => challenge.number === 4) && (
+          <div className="glass-panel rounded-xl border border-cyan-500/30 px-4 py-3 text-center font-rajdhani text-sm text-cyan-100">
+            Challenges 1 and 2 are required. For the final challenge, choose <strong className="text-white">Challenge 3 OR Challenge 4</strong>. Your choice is permanent.
+          </div>
+        )}
+        {optionalChallengeId && (
+          <div className="glass-panel rounded-xl border border-emerald-500/30 px-4 py-3 text-center font-rajdhani text-sm text-emerald-100">
+            Your optional challenge choice is locked. The other option is hidden for your account.
+          </div>
+        )}
         <div className={`grid grid-cols-1 md:grid-cols-2 auto-rows-fr ${compact ? "gap-4" : "gap-6"}`}>
           {filtered.map((challenge) => {
             const isSolved = solved.includes(challenge.id);
+            const isOptional = challenge.number === 3 || challenge.number === 4;
+            const needsChoice = isOptional && !optionalChallengeId && user?.role !== "admin";
             return (
               <div
                 key={challenge.id}
                 role={isSolved ? undefined : "button"}
-                tabIndex={isSolved ? undefined : 0}
+                tabIndex={isSolved || savingChoice ? undefined : 0}
                 aria-disabled={isSolved}
-                onClick={isSolved ? undefined : () => openChallenge(challenge.id)}
+                onClick={isSolved || savingChoice ? undefined : () => needsChoice ? chooseOptionalChallenge(challenge.id) : openChallenge(challenge.id)}
                 onKeyDown={
-                  isSolved
+                  isSolved || savingChoice
                     ? undefined
                     : (e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          openChallenge(challenge.id);
+                          if (needsChoice) chooseOptionalChallenge(challenge.id);
+                          else openChallenge(challenge.id);
                         }
                       }
                 }
@@ -545,11 +592,13 @@ export default function ChallengesView({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        openChallenge(challenge.id);
+                        if (needsChoice) chooseOptionalChallenge(challenge.id);
+                        else openChallenge(challenge.id);
                       }}
-                      className="relative z-10 w-full py-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 font-rajdhani font-bold text-sm uppercase hover:bg-cyan-500 hover:text-black transition-all"
+                      disabled={savingChoice}
+                      className="relative z-10 w-full py-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 font-rajdhani font-bold text-sm uppercase hover:bg-cyan-500 hover:text-black transition-all disabled:opacity-60"
                     >
-                      {patterns.includes(challenge.id) ? "Continue · Write Code" : "Start Challenge"}
+                      {needsChoice ? (savingChoice ? "Saving Choice..." : "Choose This · OR") : patterns.includes(challenge.id) ? "Continue · Write Code" : "Start Challenge"}
                     </button>
                   )}
                 </div>
@@ -557,6 +606,7 @@ export default function ChallengesView({
             );
           })}
         </div>
+        </>
       )}
 
       {active && (

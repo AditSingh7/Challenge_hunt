@@ -49,12 +49,17 @@ export async function POST(req: NextRequest) {
   const fresh = await users.findOne({ id: user.id }, NO_ID);
   const team = fresh?.teamId ? await teams.findOne({ id: fresh.teamId }, NO_ID) : null;
 
+  if ((challenge.number === 3 || challenge.number === 4) && fresh?.optionalChallengeId !== challenge.id) {
+    return NextResponse.json({ error: "Choose this optional challenge before submitting a solution." }, { status: 403 });
+  }
+
+  const isPersonalOptional = challenge.number === 3 || challenge.number === 4;
   const patternVerified =
     !!fresh &&
     ((fresh.patterns ?? []).includes(challenge.id) ||
       fresh.solved.includes(challenge.id) ||
-      (team?.patterns ?? []).includes(challenge.id) ||
-      (team?.solved ?? []).includes(challenge.id));
+      (!isPersonalOptional &&
+        ((team?.patterns ?? []).includes(challenge.id) || (team?.solved ?? []).includes(challenge.id))));
   if (!patternVerified) {
     return NextResponse.json(
       { error: "Stage 1 locked: verify your pattern against the problem statement before submitting code." },
@@ -82,7 +87,20 @@ export async function POST(req: NextRequest) {
   let earned = 0;
 
   if (result.status === "passed") {
-    if (team) {
+    if (isPersonalOptional) {
+      const awarded = await users.updateOne(
+        { id: user.id, solved: { $ne: challenge.id } },
+        {
+          $push: { solved: challenge.id },
+          $inc: { score: codeReward },
+          $set: { lastSeenAt: nowISO() },
+        }
+      );
+      if (awarded.matchedCount > 0) {
+        earned = codeReward;
+        if (team) await teams.updateOne({ id: team.id }, { $inc: { score: codeReward } });
+      }
+    } else if (team) {
       // Points are awarded once per team — no duplicate scores across members.
       const awarded = await teams.updateOne(
         { id: team.id, solved: { $ne: challenge.id } },
@@ -136,9 +154,22 @@ export async function POST(req: NextRequest) {
     .next();
   if (cutoff) await submissions.deleteMany({ createdAt: { $lt: cutoff.createdAt } });
 
+  const [teamSolved, userSolved, optionalChallenges] = await Promise.all([
+    team
+      ? teams.findOne({ id: team.id }, { projection: { _id: 0, solved: 1 } }).then((record) => record?.solved ?? [])
+      : Promise.resolve([] as string[]),
+    users.findOne({ id: user.id }, { projection: { _id: 0, solved: 1 } }).then((record) => record?.solved ?? []),
+    (await challengesCol())
+      .find({ number: { $in: [3, 4] } }, { projection: { _id: 0, id: 1 } })
+      .toArray(),
+  ]);
+  const personalOptionalIds = new Set(optionalChallenges.map((optionalChallenge) => optionalChallenge.id));
   const solved = team
-    ? ((await teams.findOne({ id: team.id }, { projection: { _id: 0, solved: 1 } }))?.solved ?? [])
-    : ((await users.findOne({ id: user.id }, { projection: { _id: 0, solved: 1 } }))?.solved ?? []);
+    ? [...new Set([
+        ...teamSolved.filter((id) => !personalOptionalIds.has(id)),
+        ...userSolved.filter((id) => personalOptionalIds.has(id)),
+      ])]
+    : userSolved;
 
   if (result.status === "passed") broadcastLeaderboard();
   broadcast({ type: "submissions" });

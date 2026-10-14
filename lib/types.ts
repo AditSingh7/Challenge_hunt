@@ -30,6 +30,7 @@ export interface User {
   simpleCodeAttempts?: Record<string, number>;
   teamId?: string;
   patterns?: string[];
+  optionalChallengeId?: string | null;
 }
 
 export interface Team {

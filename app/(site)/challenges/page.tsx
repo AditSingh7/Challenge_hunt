@@ -74,14 +74,34 @@ export default async function ChallengesPage() {
       ? (await teamsCol()).findOne({ id: user.teamId }, { projection: { _id: 0, solved: 1, patterns: 1 } })
       : Promise.resolve(null),
   ]);
+  const visibleChallenges = user.optionalChallengeId
+    ? challenges.filter((challenge) => (challenge.number !== 3 && challenge.number !== 4) || challenge.id === user.optionalChallengeId)
+    : challenges;
+  const visibleIds = new Set(visibleChallenges.map((challenge) => challenge.id));
+  const personalOptionalIds = new Set(
+    visibleChallenges.filter((challenge) => challenge.number === 3 || challenge.number === 4).map((challenge) => challenge.id)
+  );
+  const initialSolved = team
+    ? [...new Set([
+        ...team.solved.filter((id) => visibleIds.has(id) && !personalOptionalIds.has(id)),
+        ...user.solved.filter((id) => personalOptionalIds.has(id)),
+      ])]
+    : user.solved.filter((id) => visibleIds.has(id));
+  const initialPatterns = team
+    ? [...new Set([
+        ...(team.patterns ?? []).filter((id) => visibleIds.has(id) && !personalOptionalIds.has(id)),
+        ...(user.patterns ?? []).filter((id) => personalOptionalIds.has(id)),
+      ])]
+    : [...new Set([...(user.patterns ?? [])])].filter((id) => visibleIds.has(id));
 
   return (
     <main className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-8">
       <ChallengesView
         user={toPublicUser(user)}
-        initialChallenges={challenges}
-        initialSolved={team ? team.solved : user.solved}
-        initialPatterns={[...new Set([...(user.patterns ?? []), ...(team?.patterns ?? [])])]}
+        initialChallenges={visibleChallenges}
+        initialSolved={initialSolved}
+        initialPatterns={initialPatterns}
+        initialOptionalChallengeId={user.optionalChallengeId ?? null}
         endsAt={window.endsAt}
       />
     </main>
