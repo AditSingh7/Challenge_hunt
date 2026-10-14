@@ -452,7 +452,7 @@ export default function ChallengesView({
           No challenges in this category yet.
         </div>
       ) : (
-        <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 ${compact ? "gap-4" : "gap-6"}`}>
+        <div className={`grid grid-cols-1 md:grid-cols-2 auto-rows-fr ${compact ? "gap-4" : "gap-6"}`}>
           {filtered.map((challenge) => {
             const isSolved = solved.includes(challenge.id);
             return (
@@ -472,7 +472,7 @@ export default function ChallengesView({
                         }
                       }
                 }
-                className={`rounded-2xl p-6 border relative flex flex-col justify-between group ${
+                className={`h-full rounded-2xl p-6 border relative flex flex-col justify-between group ${
                   isSolved
                     ? "bg-brand-navy/40 border-emerald-500/15 cursor-not-allowed"
                     : "glass-panel glass-panel-hover border-cyan-500/20 cursor-pointer"
