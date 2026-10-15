@@ -7,14 +7,10 @@ export default function Logo({ className = "w-10 h-10" }: { className?: string }
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <path
-        d="M 135 174 A 82 82 0 1 1 167 147"
-        stroke="white"
-        strokeWidth="22"
-        strokeLinecap="butt"
-      />
-      <circle cx="100" cy="100" r="49" fill="white" />
-      <path d="M 99 58 L 113 72 L 99 86 L 151 138 L 137 152 L 85 100 L 68 117 L 54 103 Z" fill="#020617" />
+      <circle cx="100" cy="100" r="82" stroke="white" strokeWidth="22" />
+      <circle cx="100" cy="100" r="48" stroke="white" strokeWidth="16" />
+      <rect x="76" y="70" width="48" height="18" rx="2" fill="white" transform="rotate(-45 100 100)" />
+      <rect x="91" y="70" width="18" height="70" rx="2" fill="white" transform="rotate(-45 100 100)" />
     </svg>
   );
 }
