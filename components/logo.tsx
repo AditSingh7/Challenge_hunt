@@ -8,9 +8,8 @@ export default function Logo({ className = "w-10 h-10" }: { className?: string }
       aria-hidden="true"
     >
       <circle cx="100" cy="100" r="82" stroke="white" strokeWidth="22" />
-      <circle cx="100" cy="100" r="48" stroke="white" strokeWidth="16" />
-      <rect x="76" y="70" width="48" height="18" rx="2" fill="white" transform="rotate(-45 100 100)" />
-      <rect x="91" y="70" width="18" height="70" rx="2" fill="white" transform="rotate(-45 100 100)" />
+      <circle cx="100" cy="100" r="49" stroke="white" strokeWidth="16" />
+      <path d="M 101 61 L 117 77 L 100 94 L 156 150 L 140 166 L 84 110 L 66 128 L 50 112 Z" fill="white" />
     </svg>
   );
 }
