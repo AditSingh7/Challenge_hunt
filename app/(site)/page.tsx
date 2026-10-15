@@ -21,7 +21,7 @@ export default async function HomePage() {
           <section className="min-h-[72vh] flex flex-col justify-center items-center text-center pt-4 pb-8 relative">
             <div className="relative w-32 h-32 md:w-40 md:h-40 mb-6 group cursor-pointer">
               <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-2xl group-hover:bg-cyan-400/40 transition-all duration-500" />
-              <Logo className="w-full h-full relative z-10 transition-transform duration-500 group-hover:scale-105" />
+              <Logo className="landing-logo-mark w-full h-full relative z-10 transition-transform duration-500 group-hover:scale-105" />
             </div>
 
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono text-xs mb-6 shadow-neon-cyan">
