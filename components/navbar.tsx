@@ -114,7 +114,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-10 h-10 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-            <Logo className="navbar-logo-mark w-full h-full" />
+            <Logo className="w-full h-full" />
           </div>
           <div className="flex flex-col">
             <span className="font-typewriter font-bold text-2xl tracking-wider text-white group-hover:text-brand-neon-cyan transition-colors leading-none">
