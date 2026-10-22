@@ -1,6 +1,7 @@
 import { broadcast } from "./events";
 import { NO_ID, challengesCol, teamsCol, usersCol } from "./db";
 import { challengeCode, type LeaderboardRow } from "./types";
+import { scoreTeam } from "./scoring";
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
@@ -12,7 +13,7 @@ export async function getLeaderboardRows(selfId?: string): Promise<LeaderboardRo
 
   const [allTeams, challengeDocs] = await Promise.all([
     teams.find({}, NO_ID).toArray(),
-    challenges.find({}, { projection: { _id: 0, id: 1, number: 1 } }).toArray(),
+    challenges.find({}, { projection: { _id: 0, id: 1, number: 1, points: 1, patternPoints: 1, codePoints: 1 } }).toArray(),
   ]);
   if (!allTeams.length) return [];
 
@@ -24,7 +25,7 @@ export async function getLeaderboardRows(selfId?: string): Promise<LeaderboardRo
   const memberDocs = await users
     .find(
       { teamId: { $in: allTeams.map((team) => team.id) } },
-      { projection: { _id: 0, teamId: 1, username: 1, lastSeenAt: 1, tabViolations: 1 } }
+      { projection: { _id: 0, teamId: 1, username: 1, lastSeenAt: 1, tabViolations: 1, solved: 1, patterns: 1 } }
     )
     .toArray();
 
@@ -36,9 +37,12 @@ export async function getLeaderboardRows(selfId?: string): Promise<LeaderboardRo
     byTeam.set(member.teamId, list);
   }
 
-  const standings = allTeams
-    .map((team) => {
+  const standings = (await Promise.all(allTeams.map(async (team) => {
       const memberDocsForTeam = byTeam.get(team.id) ?? [];
+      const score = scoreTeam(team, memberDocsForTeam, challengeDocs);
+      if (team.score !== score) {
+        await teams.updateOne({ id: team.id }, { $set: { score } });
+      }
       const members = memberDocsForTeam
         .map((member) => member.username)
         .sort((a, b) => a.localeCompare(b));
@@ -58,10 +62,10 @@ export async function getLeaderboardRows(selfId?: string): Promise<LeaderboardRo
         .map((id) => codeById.get(id))
         .filter((code): code is string => Boolean(code))
         .sort((a, b) => a.localeCompare(b));
-      return { team, members, lastSeenAt, online, solves: team.solved.length, warnings, solvedIds };
-    })
+      return { team, score, members, lastSeenAt, online, solves: team.solved.length, warnings, solvedIds };
+    })))
     .sort((a, b) => {
-      if (b.team.score !== a.team.score) return b.team.score - a.team.score;
+      if (b.score !== a.score) return b.score - a.score;
       if (b.solves !== a.solves) return b.solves - a.solves;
       return a.team.name.localeCompare(b.team.name);
     });
@@ -71,7 +75,7 @@ export async function getLeaderboardRows(selfId?: string): Promise<LeaderboardRo
     teamName: row.team.name,
     teamSlug: row.team.slug,
     members: row.members,
-    score: row.team.score,
+    score: row.score,
     solves: row.solves,
     solvedIds: row.solvedIds,
     warnings: row.warnings,

@@ -8,22 +8,24 @@ const MAX_OUTPUT = 64 * 1024;
 const RUN_TIMEOUT_MS = 5000;
 const COMPILE_TIMEOUT_MS = 20000;
 
-type JDoodleResponse = {
+type OnlineCompilerResponse = {
   output?: string | null;
   error?: string | null;
-  cpuTime?: string | number | null;
+  status?: string | null;
+  exit_code?: number | null;
+  time?: string | number | null;
+  total?: string | number | null;
 };
 
-const JDOODLE_RUNTIMES: Record<Language, { language: string; versionIndex: string; label: string }> = {
-  c: { language: "c", versionIndex: "4", label: "JDoodle (GCC 9.1.0)" },
-  java: { language: "java", versionIndex: "4", label: "JDoodle (Java 17)" },
+const ONLINECOMPILER_RUNTIMES: Record<Language, { compiler: string; label: string }> = {
+  c: { compiler: "gcc-15", label: "OnlineCompiler (GCC 15)" },
+  java: { compiler: "openjdk-25", label: "OnlineCompiler (OpenJDK 25)" },
 };
 
-async function judgeWithJDoodle(language: Language, code: string, expected: string): Promise<JudgeResult> {
-  const clientId = process.env.JDOODLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.JDOODLE_CLIENT_SECRET?.trim();
-  const runtime = JDOODLE_RUNTIMES[language];
-  if (!clientId || !clientSecret) {
+async function judgeWithOnlineCompiler(language: Language, code: string, expected: string): Promise<JudgeResult> {
+  const apiKey = process.env.ONLINECOMPILER_API_KEY?.trim();
+  const runtime = ONLINECOMPILER_RUNTIMES[language];
+  if (!apiKey) {
     return {
       status: "runtime-unavailable",
       output: "",
@@ -31,24 +33,18 @@ async function judgeWithJDoodle(language: Language, code: string, expected: stri
       stderr: "",
       runtime: runtime.label,
       durationMs: 0,
-      message: "JDoodle is not configured. Set JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET on the server.",
+      message: "OnlineCompiler is not configured. Set ONLINECOMPILER_API_KEY on the server.",
     };
   }
 
   const started = Date.now();
   let response: Response;
   try {
-    response = await fetch("https://api.jdoodle.com/v1/execute", {
+    response = await fetch("https://api.onlinecompiler.io/api/run-code-sync/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        clientId,
-        clientSecret,
-        script: code,
-        language: runtime.language,
-        versionIndex: runtime.versionIndex,
-      }),
-      signal: AbortSignal.timeout(30_000),
+      headers: { "Content-Type": "application/json", Authorization: apiKey },
+      body: JSON.stringify({ compiler: runtime.compiler, code, time_limit: RUN_TIMEOUT_MS / 1000 }),
+      signal: AbortSignal.timeout(35_000),
       cache: "no-store",
     });
   } catch (error) {
@@ -60,47 +56,44 @@ async function judgeWithJDoodle(language: Language, code: string, expected: stri
       stderr: error instanceof Error ? error.message : String(error),
       runtime: runtime.label,
       durationMs: Date.now() - started,
-      message: timedOut ? "Code execution service took too long to respond." : "Could not connect to JDoodle.",
+      message: timedOut ? "Code execution service took too long to respond." : "Could not connect to OnlineCompiler.",
     };
   }
 
-  const result = (await response.json().catch(() => null)) as JDoodleResponse | null;
+  const result = (await response.json().catch(() => null)) as OnlineCompilerResponse | null;
   if (!response.ok || !result) {
     return {
       status: "runtime-unavailable",
       output: "",
       expected,
-      stderr: result?.error ?? `JDoodle returned HTTP ${response.status}.`,
+      stderr: result?.error ?? `OnlineCompiler returned HTTP ${response.status}.`,
       runtime: runtime.label,
       durationMs: Date.now() - started,
-      message: response.status === 429
-        ? "JDoodle has reached its daily execution limit. Please try again later."
-        : response.status === 401
-          ? "JDoodle rejected the server credentials."
-          : "JDoodle could not process this submission.",
+      message: response.status === 401 || response.status === 403
+        ? "OnlineCompiler rejected the API key. Check ONLINECOMPILER_API_KEY in the server environment."
+        : response.status === 429
+          ? "OnlineCompiler is at its current run limit. Please wait and try again."
+          : "OnlineCompiler could not process this submission.",
     };
   }
 
   const output = result.output ?? "";
   const stderr = result.error ?? "";
-  const combined = `${output}\n${stderr}`;
-  const timedOut = /execution timed out|time limit exceeded|program timed out/i.test(combined);
-  const compileError = /(?:^|\n)[^\n]*:\s*(?:fatal )?error:|cannot find symbol|class .* is public, should be declared in a file named|compilation failed/i.test(combined);
-  const verdict = timedOut || compileError ? null : compare(output, expected);
-  const status: JudgeStatus = timedOut ? "timeout" : compileError ? "error" : verdict?.status ?? "failed";
-  const cpuTime = Number(result.cpuTime);
+  const timedOut = result.exit_code === 124;
+  const verdict = result.status === "success" && result.exit_code === 0 ? compare(output, expected) : null;
+  const status: JudgeStatus = timedOut ? "timeout" : verdict?.status ?? "error";
+  const elapsed = Number(result.total ?? result.time);
+
   return {
     status,
     output,
     expected,
     stderr,
     runtime: runtime.label,
-    durationMs: Number.isFinite(cpuTime) && cpuTime > 0 ? Math.round(cpuTime * 1000) : Date.now() - started,
+    durationMs: Number.isFinite(elapsed) && elapsed > 0 ? Math.round(elapsed * 1000) : Date.now() - started,
     message: timedOut
       ? "Execution timed out. Check for an infinite loop."
-      : compileError
-        ? "Compilation or runtime error. Check the output for details."
-        : verdict?.message ?? "Code execution failed.",
+      : verdict?.message ?? "Compilation or runtime error. Check the output for details.",
   };
 }
 
@@ -393,8 +386,8 @@ function unavailable(language: Language): JudgeResult {
 }
 
 export async function judgeCode(language: Language, code: string, expected: string): Promise<JudgeResult> {
-  if (process.env.JDOODLE_CLIENT_ID?.trim() && process.env.JDOODLE_CLIENT_SECRET?.trim()) {
-    return judgeWithJDoodle(language, code, expected);
+  if (process.env.ONLINECOMPILER_API_KEY?.trim()) {
+    return judgeWithOnlineCompiler(language, code, expected);
   }
   if (process.env.LOCAL_CODE_EXECUTION !== "true") {
     return {
@@ -402,9 +395,9 @@ export async function judgeCode(language: Language, code: string, expected: stri
       output: "",
       expected,
       stderr: "",
-      runtime: "JDoodle",
+      runtime: ONLINECOMPILER_RUNTIMES[language].label,
       durationMs: 0,
-      message: "JDoodle is not configured. Set JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET on the server.",
+      message: "OnlineCompiler is not configured. Set ONLINECOMPILER_API_KEY on the server.",
     };
   }
 
@@ -536,11 +529,11 @@ export async function judgeCode(language: Language, code: string, expected: stri
 }
 
 export async function availableRuntimes(): Promise<Record<Language, boolean>> {
+  if (process.env.ONLINECOMPILER_API_KEY?.trim()) {
+    return { java: true, c: true };
+  }
   if (process.env.LOCAL_CODE_EXECUTION !== "true") {
-    const configured = Boolean(
-      process.env.JDOODLE_CLIENT_ID?.trim() && process.env.JDOODLE_CLIENT_SECRET?.trim()
-    );
-    return { java: configured, c: configured };
+    return { java: false, c: false };
   }
 
   const [java, c] = await Promise.all([resolveJava(), resolveC()]);

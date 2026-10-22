@@ -18,11 +18,11 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Code execution (JDoodle Compiler API)
+## Code execution (OnlineCompiler)
 
-Submissions use the hosted [JDoodle Compiler API](https://www.jdoodle.com/compiler-api), so the app does not need to host a code execution engine. Set `JDOODLE_CLIENT_ID` and `JDOODLE_CLIENT_SECRET` in the server environment (for local development, use `.env.local`). Never expose the client secret to browser code or commit it to the repository.
+Submissions run in OnlineCompiler's hosted sandbox. Set `ONLINECOMPILER_API_KEY` in the server environment (for local development, use `.env.local`). Keep the key server-side and out of source control.
 
-The app sends C submissions to GCC 9.1 and Java submissions to JDK 17, then compares program output with the challenge target. The current JDoodle API plan list shows 20 free runs per day and 1,000 daily runs on Starter at $10/month; confirm [current API credits and pricing](https://www.jdoodle.com/docs/api/credits) before the event. For local development without API credentials, set `LOCAL_CODE_EXECUTION=true`; this runs code on the local machine and is not a sandbox for untrusted submissions.
+C submissions use GCC 15 and Java submissions use OpenJDK 25. The app compares output with the challenge target and awards points only for an exact match. For local development without an API key, set `LOCAL_CODE_EXECUTION=true`; this runs code on the local machine and is not a sandbox for untrusted submissions. For Railway, add `ONLINECOMPILER_API_KEY` under the service's Variables and redeploy.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

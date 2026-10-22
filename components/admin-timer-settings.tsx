@@ -25,9 +25,11 @@ export default function AdminTimerSettings() {
   const [challengesVisible, setChallengesVisible] = useState(false);
   const [challengesEndsAt, setChallengesEndsAt] = useState<string | null>(null);
   const [challengeDuration, setChallengeDuration] = useState("120");
+  const [antiCheatPaused, setAntiCheatPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingChallenges, setSavingChallenges] = useState(false);
+  const [savingAntiCheat, setSavingAntiCheat] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   const applyTimer = useCallback((startsAt: string | null) => {
@@ -46,10 +48,12 @@ export default function AdminTimerSettings() {
       .then((d) => {
         applyTimer(d.timer?.startsAt ?? null);
         applyChallenges(d.challenges ?? null);
+        setAntiCheatPaused(d.antiCheat?.paused === true);
       })
       .catch(() => {
         applyTimer(null);
         applyChallenges(null);
+        setAntiCheatPaused(false);
       })
       .finally(() => setLoading(false));
   }, [applyTimer, applyChallenges]);
@@ -159,6 +163,29 @@ export default function AdminTimerSettings() {
       toast("Network error — challenge window not closed.");
     } finally {
       setSavingChallenges(false);
+    }
+  }
+
+  async function toggleAntiCheat() {
+    const nextPaused = !antiCheatPaused;
+    setSavingAntiCheat(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ antiCheatPaused: nextPaused }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(data.error ?? "Failed to update anti-cheat settings.");
+        return;
+      }
+      setAntiCheatPaused(data.antiCheat?.paused === true);
+      toast(nextPaused ? "Anti-cheat paused for all participants." : "Anti-cheat resumed for all participants.");
+    } catch {
+      toast("Network error — anti-cheat setting not changed.");
+    } finally {
+      setSavingAntiCheat(false);
     }
   }
 
@@ -299,6 +326,44 @@ export default function AdminTimerSettings() {
           solve countdown on the challenges page — when it reaches zero, challenges lock automatically and players see
           an &quot;Event Has Ended&quot; screen pointing to the leaderboard, which stays open for final results.
           Admins always see everything.
+        </p>
+      </div>
+
+      <div className="space-y-4 border-t border-cyan-500/15 pt-6">
+        <div className="flex items-center gap-2 font-orbitron text-[11px] tracking-[0.25em] text-cyan-400 uppercase font-bold border-b border-cyan-500/15 pb-2">
+          <i className="fa-solid fa-shield-halved" aria-hidden="true" />
+          Anti-Cheat Enforcement
+        </div>
+
+        <div
+          className={`rounded-xl border px-4 py-3 font-mono text-xs ${
+            antiCheatPaused
+              ? "border-amber-500/40 bg-amber-950/30 text-amber-200"
+              : "border-emerald-500/30 bg-emerald-950/20 text-emerald-300"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <i className={`fa-solid ${antiCheatPaused ? "fa-pause" : "fa-shield-halved"} mr-2`} aria-hidden="true" />
+          {loading ? "Loading anti-cheat setting…" : antiCheatPaused ? "PAUSED — tab switches will not create warnings or bans." : "ACTIVE — tab-switch warnings and ban threshold are enforced."}
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleAntiCheat}
+          disabled={savingAntiCheat || loading}
+          aria-pressed={antiCheatPaused}
+          className={`px-5 py-2.5 rounded-xl font-orbitron font-extrabold text-xs uppercase tracking-wider transition-colors disabled:opacity-60 ${
+            antiCheatPaused
+              ? "bg-gradient-to-r from-emerald-500 to-cyan-600 text-black shadow-neon-cyan hover:shadow-neon-blue"
+              : "border border-amber-500/40 text-amber-200 hover:bg-amber-500/10"
+          }`}
+        >
+          {savingAntiCheat ? "Saving…" : antiCheatPaused ? "Resume Anti-Cheat" : "Pause Anti-Cheat"}
+        </button>
+
+        <p className="font-rajdhani text-sm text-cyan-500/70">
+          This global setting immediately pauses new tab-switch warnings and bans, including during a live event. It does not clear existing warnings or reinstate accounts already banned; use the Users panel to unban them.
         </p>
       </div>
     </div>

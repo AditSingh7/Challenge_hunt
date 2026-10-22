@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUserRecord } from "@/lib/auth";
-import { nowISO, sessionsCol, teamsCol, usersCol } from "@/lib/db";
+import { nowISO, sessionsCol, settingsCol, teamsCol, usersCol } from "@/lib/db";
 import { broadcast } from "@/lib/events";
 import { broadcastLeaderboard } from "@/lib/leaderboard";
 import { getChallengeWindow } from "@/lib/challenge-window";
@@ -26,6 +26,14 @@ export async function POST() {
 
   if (user.role === "admin") {
     return NextResponse.json({ banned: false, ignored: true });
+  }
+
+  const antiCheatSettings = await (await settingsCol()).findOne(
+    { id: "anti-cheat" },
+    { projection: { _id: 0, paused: 1 } }
+  );
+  if (antiCheatSettings?.paused) {
+    return NextResponse.json({ banned: false, ignored: true, paused: true });
   }
 
   const challengeWindow = await getChallengeWindow();

@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 const TIMER_ID = "timer";
 const CHALLENGES_ID = "challenges";
+const ANTI_CHEAT_ID = "anti-cheat";
 const MAX_DURATION_MINUTES = 10080; // 7 days
 
 async function readTimer() {
@@ -19,11 +20,16 @@ async function readChallengesWindow() {
   return { visible: !!doc?.visible, endsAt: doc?.endsAt ?? null };
 }
 
+async function readAntiCheat() {
+  const doc = await (await settingsCol()).findOne({ id: ANTI_CHEAT_ID }, NO_ID);
+  return { paused: doc?.paused === true };
+}
+
 // Public: the homepage countdown and the challenges gate both need it.
 export async function GET() {
-  const [timer, challenges] = await Promise.all([readTimer(), readChallengesWindow()]);
+  const [timer, challenges, antiCheat] = await Promise.all([readTimer(), readChallengesWindow(), readAntiCheat()]);
   return NextResponse.json(
-    { timer, challenges },
+    { timer, challenges, antiCheat },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
@@ -41,6 +47,20 @@ export async function PUT(req: NextRequest) {
   }
 
   const settings = await settingsCol();
+
+  if ("antiCheatPaused" in body) {
+    if (typeof body.antiCheatPaused !== "boolean") {
+      return NextResponse.json({ error: "Anti-cheat pause must be true or false." }, { status: 400 });
+    }
+    const paused = body.antiCheatPaused;
+    await settings.updateOne(
+      { id: ANTI_CHEAT_ID },
+      { $set: { id: ANTI_CHEAT_ID, paused, updatedAt: nowISO() } },
+      { upsert: true }
+    );
+    broadcast({ type: "settings" });
+    return NextResponse.json({ ok: true, antiCheat: { paused } });
+  }
 
   // ---- Challenge visibility window (admin enables + sets solve duration) ----
   if ("challengesVisible" in body) {

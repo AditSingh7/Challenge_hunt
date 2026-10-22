@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { CI, NO_ID, challengesCol, isDuplicateKey, nowISO, teamsCol, usersCol } from "./db";
 import type { Team, User } from "./types";
+import { scoreTeam } from "./scoring";
 
 export const MAX_TEAM_SIZE = 2;
 
@@ -16,8 +17,13 @@ export function slugify(value: string): string {
 
 export async function getTeamOf(user: User): Promise<Team | null> {
   if (!user.teamId) return null;
-  const team = await (await teamsCol()).findOne({ id: user.teamId }, NO_ID);
-  return team ?? null;
+  const teams = await teamsCol();
+  const team = await teams.findOne({ id: user.teamId }, NO_ID);
+  if (!team) return null;
+  const members = await getTeamMembers(team);
+  const score = await calculateTeamScore(team, members);
+  if (team.score !== score) await teams.updateOne({ id: team.id }, { $set: { score } });
+  return { ...team, score };
 }
 
 export async function getTeamMembers(team: Team): Promise<User[]> {
@@ -27,17 +33,17 @@ export async function getTeamMembers(team: Team): Promise<User[]> {
     .toArray();
 }
 
-async function pointsFor(solvedIds: string[], patternIds: string[] = []): Promise<number> {
-  const solvedSet = new Set(solvedIds);
-  const ids = [...new Set([...solvedIds, ...patternIds])];
+async function calculateTeamScore(team: Team, members: readonly User[]): Promise<number> {
+  const ids = [...new Set([
+    ...team.solved,
+    ...(team.patterns ?? []),
+    ...members.flatMap((member) => [...member.solved, ...(member.patterns ?? [])]),
+  ])];
   if (!ids.length) return 0;
   const docs = await (await challengesCol())
-    .find({ id: { $in: ids } }, { projection: { points: 1, patternPoints: 1 } })
+    .find({ id: { $in: ids } }, { projection: { id: 1, points: 1, patternPoints: 1, codePoints: 1, number: 1 } })
     .toArray();
-  return docs.reduce(
-    (sum, challenge) => sum + (solvedSet.has(challenge.id) ? challenge.points : (challenge.patternPoints ?? 0)),
-    0
-  );
+  return scoreTeam(team, members, docs);
 }
 
 export async function createTeam(
@@ -71,7 +77,7 @@ export async function createTeam(
     score: 0,
     createdAt: nowISO(),
   };
-  team.score = await pointsFor(team.solved, team.patterns);
+  team.score = await calculateTeamScore(team, [user]);
 
   try {
     await (await teamsCol()).insertOne(team);
@@ -114,8 +120,10 @@ export async function addTeamMember(
 
   const solved = [...new Set([...team.solved, ...member.solved])];
   const patterns = [...new Set([...(team.patterns ?? []), ...(member.patterns ?? [])])];
-  const score = await pointsFor(solved, patterns);
   const memberIds = [...team.memberIds, member.id];
+  const updatedTeam = { ...team, solved, patterns, memberIds };
+  const existingMembers = await getTeamMembers(team);
+  const score = await calculateTeamScore(updatedTeam, [...existingMembers, member]);
 
   await teams.updateOne(
     { id: team.id },

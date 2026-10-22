@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sessionsCol, teamsCol, usersCol } from "@/lib/db";
+import { challengesCol, sessionsCol, submissionsCol, teamsCol, usersCol } from "@/lib/db";
 import { getSessionUserRecord } from "@/lib/auth";
 import { broadcast } from "@/lib/events";
 import { broadcastLeaderboard } from "@/lib/leaderboard";
+import { scoreTeam } from "@/lib/scoring";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -90,29 +91,65 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   }
 
   const users = await usersCol();
-  const removed = await users.findOneAndDelete({ id }, { projection: { username: 1, teamId: 1 } });
-  if (!removed) return NextResponse.json({ error: "User not found." }, { status: 404 });
+  const target = await users.findOne({ id }, { projection: { _id: 0, id: 1, username: 1, teamId: 1 } });
+  if (!target) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
-  await (await sessionsCol()).deleteMany({ userId: id });
+  // Remove records owned by this user before deleting the account itself.
+  await Promise.all([
+    (await sessionsCol()).deleteMany({ userId: id }),
+    (await submissionsCol()).deleteMany({ userId: id }),
+  ]);
 
-  if (removed.teamId) {
+  if (target.teamId) {
     const teams = await teamsCol();
-    const team = await teams.findOne({ id: removed.teamId });
+    const team = await teams.findOne({ id: target.teamId }, { projection: { _id: 0 } });
     if (team) {
-      const memberIds = team.memberIds.filter((memberId) => memberId !== id);
+      const remainingIds = team.memberIds.filter((memberId) => memberId !== id);
+      const remainingMembers = remainingIds.length
+        ? await users.find({ id: { $in: remainingIds } }, { projection: { _id: 0 } }).toArray()
+        : [];
+      const memberIds = remainingMembers.map((member) => member.id);
       if (memberIds.length === 0) {
         await teams.deleteOne({ id: team.id });
       } else {
+        const challenges = await challengesCol();
+        const challengeDocs = await challenges
+          .find({}, { projection: { _id: 0, id: 1, number: 1, points: 1, patternPoints: 1, codePoints: 1 } })
+          .toArray();
+        const personalChallengeIds = new Set(
+          challengeDocs
+            .filter((challenge) => challenge.number === 3 || challenge.number === 4)
+            .map((challenge) => challenge.id)
+        );
+        const updatedTeam = {
+          ...team,
+          memberIds,
+          leaderId: team.leaderId === id || !memberIds.includes(team.leaderId) ? memberIds[0] : team.leaderId,
+          // Optional challenges are personal progress, so don't retain the deleted user's progress in team data.
+          solved: team.solved.filter((challengeId) => !personalChallengeIds.has(challengeId)),
+          patterns: (team.patterns ?? []).filter((challengeId) => !personalChallengeIds.has(challengeId)),
+        };
         await teams.updateOne(
           { id: team.id },
-          { $set: { memberIds, leaderId: team.leaderId === id ? memberIds[0] : team.leaderId } }
+          {
+            $set: {
+              memberIds: updatedTeam.memberIds,
+              leaderId: updatedTeam.leaderId,
+              solved: updatedTeam.solved,
+              patterns: updatedTeam.patterns,
+              score: scoreTeam(updatedTeam, remainingMembers, challengeDocs),
+            },
+          }
         );
       }
     }
   }
 
+  await users.deleteOne({ id });
+
   broadcast({ type: "users" });
   broadcastLeaderboard();
   broadcast({ type: "stats" });
-  return NextResponse.json({ ok: true, username: removed.username });
+  broadcast({ type: "submissions" });
+  return NextResponse.json({ ok: true, username: target.username });
 }

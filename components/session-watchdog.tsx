@@ -129,7 +129,12 @@ export default function SessionWatchdog() {
         if (!res.ok || !mounted) return;
         const data = await res.json();
         const endsAt = Date.parse(data.challenges?.endsAt ?? "");
-        const active = isParticipant && data.challenges?.visible === true && Number.isFinite(endsAt) && endsAt > Date.now();
+        const active =
+          isParticipant &&
+          data.antiCheat?.paused !== true &&
+          data.challenges?.visible === true &&
+          Number.isFinite(endsAt) &&
+          endsAt > Date.now();
         if (endTimer !== undefined) window.clearTimeout(endTimer);
         if (active) {
           startMonitoring();

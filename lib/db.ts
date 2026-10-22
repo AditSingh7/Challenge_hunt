@@ -16,6 +16,7 @@ export interface SettingsDoc {
   id: string;
   startsAt?: string | null;
   visible?: boolean;
+  paused?: boolean;
   endsAt?: string | null;
   updatedAt: string;
 }

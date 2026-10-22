@@ -89,7 +89,7 @@ export default function LeaderboardTable({
         adminMode={adminMode}
       />
 
-      <div className="2xl:hidden space-y-3 p-3 sm:p-4">
+      <div className="lg:hidden space-y-3 p-3 sm:p-4">
         {!loaded ? (
           <div className="py-10 text-center font-mono text-sm text-slate-500">
             <i className="fa-solid fa-spinner fa-spin mr-2" aria-hidden="true" />
@@ -154,8 +154,8 @@ export default function LeaderboardTable({
         ))}
       </div>
 
-      <div className="hidden 2xl:block">
-        <table className="w-full table-fixed text-left text-xs border-collapse">
+      <div className="hidden overflow-x-auto lg:block">
+        <table className="w-full min-w-[980px] table-fixed text-left text-xs border-collapse">
           <colgroup>
             <col className="w-[7%]" />
             <col className="w-[20%]" />
